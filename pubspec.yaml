@@ -43,7 +43,7 @@ dependencies:
   google_fonts: ^6.3.3
   permission_handler: ^12.0.1
   audioplayers: ^6.5.1
-  workmanager: ^0.5.2
+  workmanager: ^0.9.0+3
   flutter_local_notifications: ^17.0.0
   flutter_animate: ^4.5.2
   flutter_staggered_grid_view: ^0.7.0

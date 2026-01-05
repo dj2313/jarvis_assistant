@@ -31,7 +31,6 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
   AssistantState _state = AssistantState.idle;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final AudioPlayer _audioPlayer = AudioPlayer();
 
   final List<ChatMessage> _messages = [];
   String _liveTranscript = "";
@@ -365,94 +364,292 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
 
   Widget _buildNeuralHeader(int memoryCount) {
     return Container(
-      padding: const EdgeInsets.only(top: 10, bottom: 20, left: 20, right: 20),
-      // Background gradient or simple transparency depending on preference
-      // Using simple transparency to blend with particle bg
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Left: System Identity
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "JARVIS CORE",
-                style: GoogleFonts.orbitron(
-                  color: Colors.cyan,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.greenAccent.withOpacity(0.5),
-                          blurRadius: 5,
-                        ),
-                      ],
-                    ),
+          Flexible(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "JARVIS CORE",
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.orbitron(
+                    color: Colors.cyan,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                    fontSize: 16,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    "NEURAL LINK: ACTIVE",
-                    style: GoogleFonts.shareTechMono(
-                      color: Colors.greenAccent.withOpacity(0.8),
-                      fontSize: 10,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          // Right: Controls & Memory Status
-          Row(
-            children: [
-              // Memory Count Capsule
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.cyan.withOpacity(0.05),
-                  border: Border.all(color: Colors.cyan.withOpacity(0.3)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    Icon(
-                      Icons.storage,
-                      size: 14,
-                      color: Colors.cyan.withOpacity(0.8),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.greenAccent.withOpacity(0.5),
+                            blurRadius: 5,
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 6),
-                    // We'll use _messages.length as a proxy for 'short term memory' for now
-                    // Ideally, this should fetch total long-term memories from Supabase
-                    Text(
-                      "$memoryCount NODES",
-                      style: GoogleFonts.shareTechMono(
-                        color: Colors.cyanAccent,
-                        fontSize: 12,
+                    Expanded(
+                      child: Text(
+                        "NEURAL LINK: ACTIVE",
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.shareTechMono(
+                          color: Colors.greenAccent.withOpacity(0.8),
+                          fontSize: 10,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ),
                   ],
                 ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Right: Controls & Memory Status
+          Flexible(
+            flex: 3,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Test Sentinel Button
+                  _buildSentinelButton(),
+
+                  const SizedBox(width: 8),
+
+                  // Memory Count Capsule (Interactive)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _showMemoryStatus(memoryCount);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.cyan.withOpacity(0.05),
+                        border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.cyan.withOpacity(0.1),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.storage,
+                            size: 14,
+                            color: Colors.cyan.withOpacity(0.8),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "$memoryCount NODES",
+                            style: GoogleFonts.shareTechMono(
+                              color: Colors.cyanAccent,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  // Menu Options
+                  _buildMenuOptions(),
+                ],
               ),
-              const SizedBox(width: 10),
-              // Menu Options (Logout / Delete)
-              _buildMenuOptions(),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSentinelButton() {
+    return GestureDetector(
+      onTap: () async {
+        HapticFeedback.lightImpact();
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "ANALYZING...",
+                  style: GoogleFonts.shareTechMono(color: Colors.white),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E1E1E),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        final result = await _brainService.checkProactiveStatus();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.contains("NOMINAL")
+                  ? "✓ NOMINAL"
+                  : result.contains("ERROR")
+                  ? "⚠ ERROR"
+                  : "🔔 ALERT SENT",
+              style: GoogleFonts.shareTechMono(color: Colors.white),
+            ),
+            backgroundColor: result.contains("NOMINAL")
+                ? Colors.green.withOpacity(0.8)
+                : result.contains("ERROR")
+                ? Colors.red.withOpacity(0.8)
+                : Colors.orange.withOpacity(0.8),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.orange.withOpacity(0.1),
+          border: Border.all(color: Colors.orange.withOpacity(0.4)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.shield_outlined,
+              size: 14,
+              color: Colors.orange.withOpacity(0.9),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              "SENTINEL",
+              style: GoogleFonts.shareTechMono(
+                color: Colors.orange,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMemoryStatus(int memoryCount) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassmorphicContainer(
+          width: 300,
+          height: 350,
+          borderRadius: 20,
+          blur: 20,
+          alignment: Alignment.center,
+          border: 1,
+          linearGradient: LinearGradient(
+            colors: [Colors.black87, Colors.black54],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderGradient: LinearGradient(
+            colors: [Colors.cyan.withOpacity(0.5), Colors.transparent],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "NEURAL DIAGNOSTIC",
+                  style: GoogleFonts.orbitron(
+                    color: Colors.cyanAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const Divider(color: Colors.cyan),
+                const SizedBox(height: 20),
+
+                _buildDiagnosticRow("Status", "ONLINE", Colors.greenAccent),
+                _buildDiagnosticRow("Core Nodes", "$memoryCount", Colors.white),
+                _buildDiagnosticRow("Cycle", "ACTIVE", Colors.blueAccent),
+                _buildDiagnosticRow("Sentinel", "ARMED", Colors.orangeAccent),
+
+                const Spacer(),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      "CLOSE DIAGNOSTIC",
+                      style: GoogleFonts.shareTechMono(
+                        color: Colors.cyanAccent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: GoogleFonts.shareTechMono(color: Colors.grey)),
+          Text(
+            value,
+            style: GoogleFonts.shareTechMono(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

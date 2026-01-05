@@ -52,6 +52,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+@pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     // 1. Initialize Supabase & Brain

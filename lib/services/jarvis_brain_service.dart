@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'memory_service.dart';
 import 'search_service.dart';
 
@@ -34,6 +35,11 @@ class JarvisBrainService {
   final MemoryService _memoryService = MemoryService();
   final SearchService _searchService = SearchService();
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  // Notification Plugin for Proactive Nudges
+  final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  bool _notificationsInitialized = false;
 
   static const String _groqEndpoint =
       'https://api.groq.com/openai/v1/chat/completions';
@@ -173,7 +179,9 @@ Output ONLY JSON tool calls when tools are needed. No conversational filler befo
   Future<BrainResponse> chatWithIntelligence(
     String userMessage, {
     AgentPhaseCallback? onPhaseChange,
+    BrainResponse response = await _brainService.chatWithIntelligence(userInput);
   }) async {
+    _vocalService.speak(response.content);
     final now = DateTime.now();
     final timeContext =
         "Current Time: ${now.hour}:${now.minute}, Date: ${now.day}/${now.month}/${now.year}";
@@ -230,6 +238,8 @@ Output ONLY JSON tool calls when tools are needed. No conversational filler befo
 
       if (toolCalls == null || toolCalls.isEmpty) {
         onPhaseChange?.call(AgentPhase.complete, "Response Ready");
+        // Check for proactive nudge in response
+        await checkAndTriggerNudge(initialThought ?? "");
         _saveToDatabase({'role': 'assistant', 'content': initialThought});
         return _parseResponse(initialThought ?? "", toolsUsed: toolsUsed);
       }
@@ -265,6 +275,9 @@ Output ONLY JSON tool calls when tools are needed. No conversational filler befo
 
       final data2 = jsonDecode(response2.body);
       final finalContent = data2['choices'][0]['message']['content'] ?? "";
+
+      // Check for proactive nudge in response and trigger notification
+      await checkAndTriggerNudge(finalContent);
 
       _messages.add({'role': 'assistant', 'content': finalContent});
       _saveToDatabase({'role': 'assistant', 'content': finalContent});
@@ -358,21 +371,113 @@ Output ONLY JSON tool calls when tools are needed. No conversational filler befo
     }
   }
 
+  // --- 1.2 MEMORY AUDITOR SYSTEM PROMPT ---
+  static const String _memoryAuditorPrompt = '''### ROLE:
+You are the JARVIS Memory Auditor. Your job is to ensure the Integrity of the Long-Term Memory Vault.
+
+### TASK:
+Analyze the NEW_INFORMATION provided by the user and compare it against EXISTING_MEMORIES retrieved from the database.
+
+### CONFLICT DETECTION RULES:
+1. IDENTIFY: Does the NEW_INFORMATION directly contradict an EXISTING_MEMORY? (e.g., New: "I moved to New York" vs. Old: "I live in London").
+2. CATEGORIZE: 
+   - [UPDATE]: The new info is an evolution of the old (New address, new job, new goal).
+   - [CORRECTION]: The old info was wrong or has changed (New favorite food, new health constraint).
+   - [ADDITION]: The info is entirely new and does not conflict.
+
+### EXECUTION PROTOCOL:
+- IF NO CONFLICT: Output "PROCEED: [Original Save Tool Call]".
+- IF CONFLICT FOUND: Stop the save and output a CLARIFICATION_REQUEST to the user:
+  "Sir, my archives indicate [Old Info]. However, you just mentioned [New Info]. Shall I update your permanent record with this new information?"
+
+### OUTPUT:
+Output ONLY the decision (PROCEED or CLARIFICATION_REQUEST). Do not provide internal thoughts.''';
+
   Future<String> _executeTool(
     String toolName,
     Map<String, dynamic> args,
   ) async {
-    if (toolName == 'search_memory')
+    if (toolName == 'search_memory') {
       return await _memoryService.retrieveContext(args['query'] ?? '');
+    }
+
     if (toolName == 'save_memory') {
-      final success = await _memoryService.saveMemory(args['fact'] ?? '');
+      final newFact = args['fact'] ?? '';
+
+      // 1. Pre-check: Search for related existing memories
+      final existingContext = await _memoryService.retrieveContext(newFact);
+
+      // 2. If existing memories trigger a conflict check
+      if (existingContext.isNotEmpty &&
+          !existingContext.contains("No relevant")) {
+        final auditResult = await _resolveMemoryConflict(
+          newFact,
+          existingContext,
+        );
+
+        // 3. If Auditor says STOP, return the clarification request
+        if (auditResult.contains("CLARIFICATION_REQUEST")) {
+          return auditResult; // Returns the question to the user
+        }
+      }
+
+      // 4. Default: Proceed with save (PROCEED or no conflict)
+      final success = await _memoryService.saveMemory(newFact);
       return success ? "Success: Fact archived." : "Error: Could not save.";
     }
+
     if (toolName == 'web_search') {
       final res = await _searchService.search(args['query'] ?? '');
       return res.toFormattedString();
     }
     return "Tool not found.";
+  }
+
+  Future<String> _resolveMemoryConflict(
+    String newFact,
+    String existingContext,
+  ) async {
+    final apiKey = dotenv.env['GROQ_API_KEY'];
+    if (apiKey == null) return "PROCEED"; // Fail safe
+
+    final headers = {
+      'Authorization': 'Bearer $apiKey',
+      'Content-Type': 'application/json',
+    };
+
+    final prompt =
+        """
+NEW_INFORMATION: "$newFact"
+EXISTING_MEMORIES:
+$existingContext
+""";
+
+    final messages = [
+      {'role': 'system', 'content': _memoryAuditorPrompt},
+      {'role': 'user', 'content': prompt},
+    ];
+
+    try {
+      final response = await http.post(
+        Uri.parse(_groqEndpoint),
+        headers: headers,
+        body: jsonEncode({
+          'model': 'llama-3.3-70b-versatile', // Fast & Smart
+          'messages': messages,
+          'temperature': 0.1, // Strict logic
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final decision = data['choices'][0]['message']['content'] ?? "PROCEED";
+        debugPrint("AUDITOR DECISION: $decision");
+        return decision;
+      }
+    } catch (e) {
+      debugPrint("Auditor Error: $e");
+    }
+    return "PROCEED"; // Default to save if check fails
   }
 
   BrainResponse _parseResponse(
@@ -392,5 +497,183 @@ Output ONLY JSON tool calls when tools are needed. No conversational filler befo
       thought: thought.isEmpty ? null : thought.trim(),
       toolsUsed: toolsUsed,
     );
+  }
+
+  // ==================== PROACTIVE NUDGE SYSTEM ====================
+
+  /// Initialize notifications if not already done
+  Future<void> _ensureNotificationsInitialized() async {
+    if (_notificationsInitialized) return;
+
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initSettings = InitializationSettings(
+      android: androidSettings,
+    );
+
+    await _notificationsPlugin.initialize(initSettings);
+    _notificationsInitialized = true;
+    debugPrint("JARVIS Sentinel: Notification system online.");
+  }
+
+  /// Trigger a proactive nudge notification
+  Future<void> triggerProactiveNudge(Map<String, dynamic> nudgeJson) async {
+    await _ensureNotificationsInitialized();
+
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'jarvis_sentinel',
+          'JARVIS Sentinel',
+          channelDescription: 'Proactive alerts from JARVIS',
+          importance: Importance.max,
+          priority: Priority.high,
+          showWhen: true,
+          icon: '@mipmap/ic_launcher',
+        );
+
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+    );
+
+    await _notificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000, // Unique ID
+      nudgeJson['title'] ?? 'JARVIS Alert',
+      nudgeJson['body'] ?? 'Attention required, Sir.',
+      platformDetails,
+    );
+
+    debugPrint("JARVIS Sentinel: Nudge delivered - ${nudgeJson['title']}");
+  }
+
+  /// Check if AI response contains a nudge JSON and trigger notification
+  Future<void> checkAndTriggerNudge(String response) async {
+    try {
+      // Try to extract JSON from the response
+      final jsonMatch = RegExp(
+        r'\{[^{}]*"title"[^{}]*"body"[^{}]*\}',
+      ).firstMatch(response);
+      if (jsonMatch != null) {
+        final jsonStr = jsonMatch.group(0)!;
+        final Map<String, dynamic> nudgeData = jsonDecode(jsonStr);
+
+        if (nudgeData.containsKey('title') && nudgeData.containsKey('body')) {
+          await triggerProactiveNudge(nudgeData);
+        }
+      }
+    } catch (e) {
+      debugPrint("Nudge parse attempt (non-critical): $e");
+    }
+  }
+
+  /// Perform a proactive systems check (for manual testing or background tasks)
+  Future<String> checkProactiveStatus() async {
+    final now = DateTime.now();
+    final timeContext =
+        "Current Time: ${now.hour}:${now.minute}, Date: ${now.day}/${now.month}/${now.year}";
+
+    final systemCheckPrompt =
+        """
+[SENTINEL MODE ACTIVATED]
+$timeContext
+
+TASK: Perform a proactive analysis.
+1. Search memory for today's schedule, deadlines, or user preferences.
+2. Check web for current weather, traffic, or relevant news.
+3. Compare context vs environment.
+4. If a conflict is detected (e.g., outdoor meeting + rain, deadline approaching, etc.), output ONLY a JSON notification:
+{
+  "title": "Proactive Alert, Sir",
+  "body": "[Your concise warning and recommendation]",
+  "priority": "high"
+}
+
+5. If NO conflict is found, output: "STATUS: NOMINAL"
+
+Execute analysis now.
+""";
+
+    final apiKey = dotenv.env['GROQ_API_KEY'];
+    if (apiKey == null) return "ERROR: Missing API Key";
+
+    final headers = {
+      'Authorization': 'Bearer $apiKey',
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      final tools = _buildToolRegistry();
+      final checkMessages = [
+        {'role': 'system', 'content': _systemInstructions},
+        {'role': 'user', 'content': systemCheckPrompt},
+      ];
+
+      final requestBody = {
+        'model': _model,
+        'messages': checkMessages,
+        'tools': tools,
+        'tool_choice': 'auto',
+      };
+
+      final response1 = await http.post(
+        Uri.parse(_groqEndpoint),
+        headers: headers,
+        body: jsonEncode(requestBody),
+      );
+
+      final data1 = jsonDecode(response1.body);
+      if (response1.statusCode != 200) {
+        throw Exception(data1['error']?['message'] ?? 'API Error');
+      }
+
+      final message = data1['choices'][0]['message'];
+      final List? toolCalls = message['tool_calls'];
+      String? initialResponse = message['content'];
+
+      // If tools were called, execute them
+      if (toolCalls != null && toolCalls.isNotEmpty) {
+        final tempMessages = List<Map<String, dynamic>>.from(checkMessages);
+        tempMessages.add(message);
+
+        for (var toolCall in toolCalls) {
+          final String toolName = toolCall['function']['name'];
+          final String toolId = toolCall['id'];
+          final Map<String, dynamic> toolArgs = jsonDecode(
+            toolCall['function']['arguments'] ?? "{}",
+          );
+
+          String toolResult = await _executeTool(toolName, toolArgs);
+
+          tempMessages.add({
+            'role': 'tool',
+            'tool_call_id': toolId,
+            'name': toolName,
+            'content': toolResult,
+          });
+        }
+
+        // Get final synthesis
+        final response2 = await http.post(
+          Uri.parse(_groqEndpoint),
+          headers: headers,
+          body: jsonEncode({'model': _model, 'messages': tempMessages}),
+        );
+
+        final data2 = jsonDecode(response2.body);
+        final finalContent = data2['choices'][0]['message']['content'] ?? "";
+
+        // Check and trigger nudge if present
+        await checkAndTriggerNudge(finalContent);
+
+        return finalContent;
+      }
+
+      // No tools used, return initial response
+      await checkAndTriggerNudge(initialResponse ?? "");
+      return initialResponse ?? "STATUS: NOMINAL";
+    } catch (e) {
+      debugPrint("Proactive check error: $e");
+      return "ERROR: $e";
+    }
   }
 }
