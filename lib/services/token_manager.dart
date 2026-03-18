@@ -78,7 +78,7 @@ class TokenManager {
     _prefs?.setInt('chats_used_today', _chatsUsedToday);
 
     debugPrint(
-      "📊 Token Usage: $_tokensUsedToday/$_MAX_TOKENS_PER_DAY tokens, "
+      "📊 Token Usage: $_tokensUsedToday/$MAX_TOKENS_PER_DAY tokens, "
       "Chats: $_chatsUsedToday/$DAILY_CHAT_LIMIT",
     );
 
