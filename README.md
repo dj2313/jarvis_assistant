@@ -1,4 +1,4 @@
-# JARVIS Assistant (Persona AI)
+# Friday Assistant (Persona AI)
 
 <div align="center">
   <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
@@ -9,32 +9,32 @@
 
 <br />
 
-**JARVIS Assistant** is a next-generation, voice-activated Personal AI companion built with **Flutter**. Designed with a "Sci-Fi First" philosophy, it combines state-of-the-art Large Language Models (LLMs) with a premium, immersive user interface featuring holographic aesthetics, reactive animations, and proactive intelligence.
+**Friday Assistant** is a next-generation, voice-activated Personal AI companion built with **Flutter**. Designed with a "Sci-Fi First" philosophy, it combines state-of-the-art Large Language Models (LLMs) with a premium, immersive user interface featuring holographic aesthetics, reactive animations, and proactive intelligence.
 
-Unlike standard chatbots, JARVIS possesses **Long-Term Memory**, **Real-Time Web Access**, and a **Proactive Sentinel Mode** that watches out for you even when the app is in the background.
+Unlike standard chatbots, Friday possesses **Long-Term Memory**, **Real-Time Web Access**, and a **Proactive Sentinel Mode** that watches out for you even when the app is in the background.
 
 ---
 
 ## 🌌 Futuristic UI/UX
 The interface is designed to feel like a piece of advanced technology from the future.
-- **The JARVIS Orb:** A central, living core that reacts to voice amplitude, pulses when thinking, and transforms based on the AI's state (Idle, Listening, Processing, Speaking).
+- **The Friday Orb:** A central, living core that reacts to voice amplitude, pulses when thinking, and transforms based on the AI's state (Idle, Listening, Processing, Speaking).
 - **Holographic Aesthetics:** Extensive use of **Glassmorphism**, neon gradients, and a dynamic **Particle Field** background that drifts endlessly.
 - **Neural HUD:** A "Heads-Up Display" header showing real-time system status, inclusive of a "Neural Link" indicator and active Memory Node count.
 - **Immersive Feedback:** Haptic feedback on interactions and distinct sound effects for activation, processing, and responses.
 
 ## 🧠 Advanced Intelligence (The Brain)
-At the core is the `JarvisBrainService`, powered by **Groq (Llama 3.3 70B)**, enabling lightning-fast inference and complex reasoning.
-- **Agentic Workflow:** JARVIS doesn't just guess; he thinks. The UI visualizes his thought process phases: `Thinking` → `Searching Web` → `Accessing Memory` → `Synthesizing`.
+At the core is the `FridayBrainService`, powered by **Groq (Llama 3.3 70B)**, enabling lightning-fast inference and complex reasoning.
+- **Agentic Workflow:** Friday doesn't just guess; he thinks. The UI visualizes his thought process phases: `Thinking` → `Searching Web` → `Accessing Memory` → `Synthesizing`.
 - **Memory Auditor:** An autonomous sub-agent that verifies new information against existing long-term memory to prevent conflicts, deciding whether to **Update**, **Correct**, or **Add** data.
 - **Tool Use:**
   - **`web_search`**: Fetches real-time data (Weather, News, Stock Prices).
   - **`save_memory` / `search_memory`**: Interacts with the Supabase Vault to recall personal facts, preferences, and past conversations.
 
 ## 🛡️ Proactive Sentinel System
-JARVIS isn't just reactive; he is **Proactive**.
-- **Background "Nudges":** Utilizing `workmanager` and `flutter_local_notifications`, JARVIS performs background checks on your schedule, weather, and environment.
+Friday isn't just reactive; he is **Proactive**.
+- **Background "Nudges":** Utilizing `workmanager` and `flutter_local_notifications`, Friday performs background checks on your schedule, weather, and environment.
 - **Contextual Awareness:** "Sir, you have an outdoor meeting at 3 PM, but rain is forecast. I suggest taking an umbrella."
-- **Manual Diagnostics:** Trigger a "Sentinel Check" manually to have JARVIS analyze your current situation immediately.
+- **Manual Diagnostics:** Trigger a "Sentinel Check" manually to have Friday analyze your current situation immediately.
 
 ## 🗣️ Vocal Interface
 - **Multilingual Support:** Fluent in English, French, German, Spanish, and Hindi.
@@ -42,7 +42,7 @@ JARVIS isn't just reactive; he is **Proactive**.
 - **Natural Voice:** High-quality Text-to-Speech (TTS) response system.
 
 ## 📜 System Protocols
-JARVIS operates under a strict set of behavioral protocols to ensure stability and personality:
+Friday operates under a strict set of behavioral protocols to ensure stability and personality:
 
 - **Sentinel Protocol:** Background conflict detection (Weather vs. Schedule).
 
@@ -75,15 +75,15 @@ JARVIS operates under a strict set of behavioral protocols to ensure stability a
 
 ### Prerequisites
 1.  **Flutter SDK** installed (v3.10+ recommended).
-2.  **Supabase Project** set up with a `chat_messages` and `jarvis_memory` table.
+2.  **Supabase Project** set up with a `chat_messages` and `Friday_memory` table.
 3.  **Groq API Key** for LLM inference.
 
 ### Installation
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/your-username/jarvis-assistant.git
-    cd jarvis-assistant
+    git clone https://github.com/your-username/Friday-assistant.git
+    cd Friday-assistant
     ```
 
 2.  **Configure Environment**
@@ -111,15 +111,15 @@ lib/
 ├── core/            # Configuration and Constants
 ├── models/          # Data Models (ChatMessage, etc.)
 ├── screens/         # UI Screens
-│   ├── jarvis_home_screen.dart       # Main HUD Interface
-│   ├── jarvis_initialization_screen.dart # Boot-up Sequence
+│   ├── Friday_home_screen.dart       # Main HUD Interface
+│   ├── Friday_initialization_screen.dart # Boot-up Sequence
 │   └── ...
 ├── services/        # Logic & API Layers
-│   ├── jarvis_brain_service.dart     # AI Core, Groq Integration, & Tools
+│   ├── Friday_brain_service.dart     # AI Core, Groq Integration, & Tools
 │   ├── memory_service.dart           # Supabase DB Interactions
 │   └── vocal_service.dart            # TTS & STT Handling
 └── widgets/         # Reusable UI Components
-    └── jarvis_orb.dart               # The animated AI Core
+    └── Friday_orb.dart               # The animated AI Core
 ```
 
 ---

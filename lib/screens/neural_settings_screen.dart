@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/memory_service.dart';
+import 'memory_vault_screen.dart';
 
 class NeuralSettingsScreen extends StatefulWidget {
   const NeuralSettingsScreen({super.key});
@@ -154,7 +155,11 @@ class _NeuralSettingsScreenState extends State<NeuralSettingsScreen> {
 
                   const Spacer(),
 
-                  // 3. Wipe Memory Button
+                  // 3. Memory Explorer Button
+                  _buildExplorerButton(),
+                  const SizedBox(height: 20),
+
+                  // 4. Wipe Memory Button
                   _buildWipeButton(),
                   const SizedBox(height: 40),
                 ],
@@ -307,6 +312,82 @@ class _NeuralSettingsScreenState extends State<NeuralSettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildExplorerButton() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const MemoryVaultScreen()),
+        );
+      },
+      child:
+          GlassmorphicContainer(
+                width: double.infinity,
+                height: 80,
+                borderRadius: 20,
+                blur: 20,
+                alignment: Alignment.center,
+                border: 1,
+                linearGradient: LinearGradient(
+                  colors: [
+                    Colors.blueAccent.withOpacity(0.1),
+                    Colors.cyan.withOpacity(0.05),
+                  ],
+                ),
+                borderGradient: LinearGradient(
+                  colors: [
+                    Colors.blueAccent.withOpacity(0.5),
+                    Colors.transparent,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 20),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.grid_view_rounded,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "MEMORY VAULT",
+                          style: GoogleFonts.orbitron(
+                            color: Colors.blueAccent,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          "Inspect & Manage Knowledge Graph",
+                          style: GoogleFonts.shareTechMono(
+                            color: Colors.white54,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+              .animate(onPlay: (c) => c.repeat(reverse: true))
+              .shimmer(
+                duration: 3.seconds,
+                color: Colors.blueAccent.withOpacity(0.2),
+              ),
     );
   }
 

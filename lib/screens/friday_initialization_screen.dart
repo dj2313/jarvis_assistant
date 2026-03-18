@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'jarvis_home_screen.dart';
+import 'friday_home_screen.dart';
 
-class JarvisInitializationScreen extends StatefulWidget {
-  const JarvisInitializationScreen({super.key});
+class FridayInitializationScreen extends StatefulWidget {
+  const FridayInitializationScreen({super.key});
 
   @override
-  State<JarvisInitializationScreen> createState() =>
-      _JarvisInitializationScreenState();
+  State<FridayInitializationScreen> createState() =>
+      _FridayInitializationScreenState();
 }
 
-class _JarvisInitializationScreenState extends State<JarvisInitializationScreen>
+class _FridayInitializationScreenState extends State<FridayInitializationScreen>
     with TickerProviderStateMixin {
   // Animation Controllers
   late AnimationController _dotController;
@@ -101,7 +101,7 @@ class _JarvisInitializationScreenState extends State<JarvisInitializationScreen>
   void _navigateToHome() {
     Navigator.of(
       context,
-    ).pushReplacement(_CircularRevealRoute(const JarvisHomeScreen()));
+    ).pushReplacement(_CircularRevealRoute(const FridayHomeScreen()));
   }
 
   @override

@@ -11,7 +11,7 @@
     </queries>
 
     <application
-        android:label="jarvis_assistant"
+        android:label="Friday"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

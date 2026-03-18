@@ -13,12 +13,12 @@ enum AssistantState {
   synthesizing, // Processing tool results for final answer
 }
 
-class JarvisOrb extends StatefulWidget {
+class FridayOrb extends StatefulWidget {
   final AssistantState state;
   final VoidCallback onTap;
   final double soundLevel;
 
-  const JarvisOrb({
+  const FridayOrb({
     super.key,
     required this.state,
     required this.onTap,
@@ -26,10 +26,10 @@ class JarvisOrb extends StatefulWidget {
   });
 
   @override
-  State<JarvisOrb> createState() => _JarvisOrbState();
+  State<FridayOrb> createState() => _FridayOrbState();
 }
 
-class _JarvisOrbState extends State<JarvisOrb> with TickerProviderStateMixin {
+class _FridayOrbState extends State<FridayOrb> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late AnimationController _rotationController;
 
@@ -48,7 +48,7 @@ class _JarvisOrbState extends State<JarvisOrb> with TickerProviderStateMixin {
   }
 
   @override
-  void didUpdateWidget(JarvisOrb oldWidget) {
+  void didUpdateWidget(FridayOrb oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state != widget.state) {
       _updateAnimationState();
@@ -106,7 +106,7 @@ class _JarvisOrbState extends State<JarvisOrb> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic color based on state for premium JARVIS feel
+    // Dynamic color based on state for premium FRIDAY feel
     final Color primaryColor = _getStateColor();
 
     // Determine Scale based on Sound Level (0.0 to 1.0) or Pulse (0.0 to 1.0)

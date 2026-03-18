@@ -1,6 +1,6 @@
 {
-    "name": "jarvis_assistant",
-    "short_name": "jarvis_assistant",
+    "name": "Friday_assistant",
+    "short_name": "Friday_assistant",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

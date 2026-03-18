@@ -1,4 +1,4 @@
-package com.example.jarvis_assistant
+package com.example.Friday_assistant
 
 import io.flutter.embedding.android.FlutterActivity
 

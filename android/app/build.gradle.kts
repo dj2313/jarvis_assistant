@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.jarvis_assistant"
+    namespace = "com.example.Friday_assistant"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -22,13 +22,13 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.jarvis_assistant"
+        applicationId = "com.example.Friday_assistant"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
-        versionName = "1.2.9"
+        versionName = "1.3.0"
     }
 
     buildTypes {

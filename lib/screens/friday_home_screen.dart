@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../widgets/jarvis_orb.dart';
+import '../widgets/friday_orb.dart';
 import '../services/voice_service.dart';
-import '../services/jarvis_brain_service.dart';
+import '../services/friday_brain_service.dart';
+import '../widgets/rich_message_card.dart';
+import '../widgets/ambient_idle_overlay.dart';
+import 'routines_screen.dart';
 
 // Enhanced Chat Message Model
 class ChatMessage {
@@ -19,15 +21,15 @@ class ChatMessage {
   ChatMessage({required this.text, required this.isUser, this.thought});
 }
 
-class JarvisHomeScreen extends StatefulWidget {
-  const JarvisHomeScreen({super.key});
+class FridayHomeScreen extends StatefulWidget {
+  const FridayHomeScreen({super.key});
 
   @override
-  State<JarvisHomeScreen> createState() => _JarvisHomeScreenState();
+  State<FridayHomeScreen> createState() => _FridayHomeScreenState();
 }
 
-class _JarvisHomeScreenState extends State<JarvisHomeScreen>
-    with TickerProviderStateMixin {
+class _FridayHomeScreenState extends State<FridayHomeScreen>
+    with TickerProviderStateMixin, AmbientIdleMixin {
   AssistantState _state = AssistantState.idle;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -39,7 +41,7 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
   bool _hasInteracted = false; // Track if chat should be shown
 
   final VoiceService _voiceService = VoiceService();
-  final JarvisBrainService _brainService = JarvisBrainService();
+  final FridayBrainService _brainService = FridayBrainService();
   StreamSubscription<double>? _amplitudeSub;
 
   final List<Map<String, String>> _supportedLanguages = [
@@ -273,10 +275,28 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
             child: CustomPaint(painter: ParticlePainter(_particleController)),
           ),
 
+          // 2. Waveform Visualizer (Behind everything at bottom)
+          if (_state == AssistantState.speaking ||
+              _state == AssistantState.listening)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 100,
+              child: CustomPaint(
+                painter: WaveformPainter(
+                  amplitude: _soundLevel,
+                  color: _state == AssistantState.listening
+                      ? Colors.blueAccent
+                      : Colors.cyanAccent,
+                ),
+              ),
+            ),
+
           SafeArea(
             child: Column(
               children: [
-                // 2. Navbar with System Status Icons
+                // 3. Navbar with System Status Icons
                 StreamBuilder<int>(
                   stream: _brainService.memoryCountStream,
                   builder: (context, snapshot) {
@@ -285,7 +305,7 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
                   },
                 ),
 
-                // 3. Main Content Area (Orb + Chat)
+                // 4. Main Content Area (Orb + Chat)
                 Expanded(
                   child: Stack(
                     alignment: Alignment.center,
@@ -299,9 +319,11 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
                         child: AnimatedContainer(
                           duration: 800.ms,
                           curve: Curves.easeOutCubic,
-                          width: _hasInteracted ? 140 : 280,
-                          height: _hasInteracted ? 140 : 280,
-                          child: JarvisOrb(
+                          width: _hasInteracted
+                              ? 100
+                              : 280, // Smaller when chatting
+                          height: _hasInteracted ? 100 : 280,
+                          child: FridayOrb(
                             state: _state,
                             soundLevel: _soundLevel,
                             onTap: _handleOrbTap,
@@ -310,10 +332,9 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
                       ),
 
                       // Chat Overlay
-                      // Positioned below the Orb (140 + padding)
                       if (_hasInteracted && _messages.isNotEmpty)
                         Positioned.fill(
-                          top: 150, // Starts below the shrunk Orb
+                          top: 110, // Adjusted for smaller orb
                           child: ShaderMask(
                             shaderCallback: (Rect bounds) {
                               return LinearGradient(
@@ -331,7 +352,7 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
                             blendMode: BlendMode.dstIn,
                             child: Container(
                               margin: const EdgeInsets.symmetric(
-                                horizontal: 20,
+                                horizontal: 10,
                               ),
                               child: _buildChatList(),
                             ),
@@ -351,12 +372,15 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
                   ),
                 ),
 
-                // 4. Floating Command Bar
+                // 5. Floating Command Bar
                 _buildFloatingCommandBar(),
                 const SizedBox(height: 10),
               ],
             ),
           ),
+
+          // 6. Ambient Screensaver Overlay (From Mixin)
+          buildAmbientOverlay(),
         ],
       ),
     );
@@ -376,7 +400,7 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "JARVIS CORE",
+                  "FRIDAY CORE",
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.orbitron(
                     color: Colors.cyan,
@@ -486,6 +510,9 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
               ),
             ),
           ),
+
+          // 6. Ambient Screensaver Overlay (From Mixin)
+          buildAmbientOverlay(),
         ],
       ),
     );
@@ -656,10 +683,24 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
     );
   }
 
+  // --- Ambient Mode Overrides ---
+  @override
+  String? get ambientWeather => "24°C Clear"; // Placeholder or fetch from Brain
+  @override
+  String? get ambientNextEvent => "Meeting 5:00 PM"; // Placeholder
+  @override
+  int? get ambientMemoryCount => 42; // Placeholder or use _brainService
+
   Widget _buildMenuOptions() {
     return PopupMenuButton<String>(
       onSelected: (value) async {
-        if (value == 'delete_history') {
+        resetIdleTimer(); // User interaction
+        if (value == 'routines') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const RoutinesScreen()),
+          );
+        } else if (value == 'delete_history') {
           await _brainService.clearHistory();
           setState(() {
             _messages.clear();
@@ -669,25 +710,44 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
           });
         } else if (value == 'logout') {
           // Implement logout logic here
-          // For now, we'll just pop to the previous screen or show a message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Logging out..."),
               duration: Duration(seconds: 1),
             ),
           );
-          // Assuming a parent navigator exists, otherwise replace with appropriate navigation
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       },
       color: const Color(0xFF1E1E1E),
-      icon: Icon(Icons.more_vert, color: Colors.blueAccent, size: 20),
+      icon: const Icon(Icons.more_vert, color: Colors.blueAccent, size: 20),
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'routines',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.auto_fix_high,
+                color: Colors.cyanAccent,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                "Automation Hub",
+                style: GoogleFonts.shareTechMono(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
         PopupMenuItem(
           value: 'delete_history',
           child: Row(
             children: [
-              Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+              const Icon(
+                Icons.delete_outline,
+                color: Colors.redAccent,
+                size: 18,
+              ),
               const SizedBox(width: 10),
               Text(
                 "Purge Memory",
@@ -700,7 +760,7 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
           value: 'logout',
           child: Row(
             children: [
-              Icon(Icons.logout, color: Colors.white, size: 18),
+              const Icon(Icons.logout, color: Colors.white, size: 18),
               const SizedBox(width: 10),
               Text(
                 "Logout",
@@ -716,89 +776,16 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
   Widget _buildChatList() {
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.only(
-        top: 10,
-        bottom: 80,
-      ), // Less top padding since Positioned handles offset
+      padding: const EdgeInsets.only(top: 10, bottom: 80),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
         final msg = _messages[index];
-        return _buildMessageCard(msg);
+        return RichMessageCard(
+          text: msg.text,
+          isUser: msg.isUser,
+          shouldAnimate: index == _messages.length - 1,
+        ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
       },
-    );
-  }
-
-  Widget _buildMessageCard(ChatMessage msg) {
-    final isUser = msg.isUser;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Align(
-        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: ClipRRect(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-            bottomLeft: isUser ? Radius.circular(20) : Radius.circular(5),
-            bottomRight: isUser ? Radius.circular(5) : Radius.circular(20),
-          ),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? Colors.blue.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.6),
-                border: Border.all(
-                  color: isUser
-                      ? Colors.blueAccent.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!isUser) ...[
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.auto_awesome,
-                          size: 12,
-                          color: Colors.blueAccent,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "JARVIS",
-                          style: GoogleFonts.orbitron(
-                            color: Colors.blueAccent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                  Text(
-                    msg.text,
-                    style: GoogleFonts.inter(
-                      color: Colors.white.withValues(alpha: isUser ? 1.0 : 0.9),
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -875,7 +862,10 @@ class _JarvisHomeScreenState extends State<JarvisHomeScreen>
                       border: InputBorder.none,
                       isDense: true,
                     ),
-                    onSubmitted: _handleUserCommand,
+                    onSubmitted: (text) {
+                      resetIdleTimer();
+                      _handleUserCommand(text);
+                    },
                   ),
                 ),
                 IconButton(
@@ -963,4 +953,55 @@ class Particle {
 
 class Random {
   double nextDouble() => math.Random().nextDouble();
+}
+
+class WaveformPainter extends CustomPainter {
+  final double amplitude;
+  final Color color;
+
+  WaveformPainter({required this.amplitude, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    final path = Path();
+    final midY = size.height / 2;
+    final width = size.width;
+
+    path.moveTo(0, midY);
+
+    for (double i = 0; i <= width; i += 5) {
+      final x = i;
+      // Simple sine wave modulation based on max amplitude
+      final normalizedAmp = amplitude.clamp(0.0, 1.0);
+      final waveHeight =
+          50 * normalizedAmp * math.sin((i / width) * 2 * math.pi * 5);
+      path.lineTo(x, midY + waveHeight);
+    }
+
+    canvas.drawPath(path, paint);
+
+    // Mirror
+    final paintFill = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          color.withOpacity(0.0),
+          color.withOpacity(0.2),
+          color.withOpacity(0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, width, size.height));
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, width, size.height), paintFill);
+  }
+
+  @override
+  bool shouldRepaint(covariant WaveformPainter oldDelegate) {
+    return oldDelegate.amplitude != amplitude || oldDelegate.color != color;
+  }
 }

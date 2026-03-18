@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/config.dart';
-import 'screens/jarvis_initialization_screen.dart';
+// import 'screens/friday_initialization_screen.dart'; // Unused
+import 'screens/friday_home_screen.dart';
+import 'screens/auth_screen.dart';
+import 'services/auth_service.dart';
 import 'package:workmanager/workmanager.dart';
 
 Future<void> main() async {
@@ -27,16 +30,25 @@ Future<void> main() async {
     isInDebugMode: true, // Remove or set to false in production
   );
 
-  runApp(const MyApp());
+  // Determine Initial Screen
+  final bool isLoggedIn = AuthService().isLoggedIn;
+
+  runApp(
+    FridayApp(
+      initialScreen: isLoggedIn ? const FridayHomeScreen() : const AuthScreen(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class FridayApp extends StatelessWidget {
+  final Widget initialScreen;
+
+  const FridayApp({super.key, required this.initialScreen});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Jarvis Assistant',
+      title: 'Friday',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -47,7 +59,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const JarvisInitializationScreen(),
+      home: initialScreen,
     );
   }
 }
@@ -56,9 +68,10 @@ class MyApp extends StatelessWidget {
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     // 1. Initialize Supabase & Brain
+    // Note: Background tasks need their own Supabase init if accessed
     // 2. Perform a "Silent Check"
     // 3. If a conflict is found, trigger a Local Notification
-    print("JARVIS is performing a background systems check...");
+    print("FRIDAY is performing a background systems check...");
     return Future.value(true);
   });
 }
