@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
+import '../core/config.dart';
 
 /// SearchResult model to encapsulate Tavily search results
 class SearchResult {
@@ -92,9 +93,9 @@ class SearchService {
   ///
   /// Returns a [SearchResult] containing the answer and sources
   Future<SearchResult> search(String query) async {
-    final apiKey = dotenv.env['TAVILY_API_KEY'];
+    final apiKey = Config.tavilyApiKey;
 
-    if (apiKey == null || apiKey.isEmpty) {
+    if (apiKey.isEmpty) {
       debugPrint('SearchService Error: TAVILY_API_KEY is missing.');
       return SearchResult.empty();
     }

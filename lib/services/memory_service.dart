@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/config.dart';
 
 class MemoryService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -15,7 +16,7 @@ class MemoryService {
 
   /// 1. Get Vector Embedding from HuggingFace
   Future<List<double>?> _getEmbedding(String text) async {
-    final apiKey = dotenv.env['HF_TOKEN'];
+    final apiKey = Config.hfToken;
     try {
       final response = await http.post(
         Uri.parse(_hfModelApi),
@@ -43,7 +44,7 @@ class MemoryService {
     }
   }
 
-  /// Retrieves relevant context from the 'jarvis_memory' table.
+  /// Retrieves relevant context from the 'Friday_memory' table.
   Future<String> retrieveContext(String query) async {
     try {
       // 1. Convert the search query into a vector
@@ -88,10 +89,14 @@ class MemoryService {
       final List<double>? vector = await _getEmbedding(content);
       if (vector == null) return false;
 
-      // Log the dimension count to verify (Should be 384)
-      debugPrint("Saving Memory. Vector Dimension: ${vector.length}");
+      final String? userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        debugPrint("Error: No user logged in.");
+        return false;
+      }
 
-      await _supabase.from('jarvis_memory').insert({
+      await _supabase.from('Friday_memory').insert({
+        'user_id': userId, // Explicitly linking to user
         'content': content,
         'embedding': vector,
       });
@@ -108,7 +113,7 @@ class MemoryService {
     try {
       // Use count option
       final response = await _supabase
-          .from('jarvis_memory')
+          .from('Friday_memory')
           .count(CountOption.exact);
       return response;
     } catch (e) {
@@ -120,11 +125,35 @@ class MemoryService {
   Future<void> wipeMemory() async {
     try {
       // Delete all rows where id is not 0 (effectively all)
-      await _supabase.from('jarvis_memory').delete().neq('id', 0);
+      await _supabase.from('Friday_memory').delete().neq('id', 0);
       debugPrint("Global Memory Wipe Initiated.");
     } catch (e) {
       debugPrint("Error wiping memory: $e");
       throw Exception("Failed to wipe memory: $e");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllMemories() async {
+    try {
+      final response = await _supabase
+          .from('Friday_memory')
+          .select('id, content, created_at')
+          .order('created_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint("Error fetching all memories: $e");
+      return [];
+    }
+  }
+
+  Future<void> deleteMemory(int id) async {
+    try {
+      await _supabase.from('Friday_memory').delete().eq('id', id);
+      debugPrint("Memory Node $id deleted.");
+    } catch (e) {
+      debugPrint("Error deleting memory: $e");
+      throw Exception("Failed to delete memory node.");
     }
   }
 
