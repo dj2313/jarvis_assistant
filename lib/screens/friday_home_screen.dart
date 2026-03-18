@@ -293,17 +293,18 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               ),
             ),
 
-          SafeArea(
-            child: Column(
-              children: [
-                // 3. Navbar with System Status Icons
-                StreamBuilder<int>(
-                  stream: _brainService.memoryCountStream,
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-                    return _buildNeuralHeader(count);
-                  },
-                ),
+          Positioned.fill(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // 3. Navbar with System Status Icons
+                  StreamBuilder<int>(
+                    stream: _brainService.memoryCountStream,
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return RepaintBoundary(child: _buildNeuralHeader(count));
+                    },
+                  ),
 
                 // 4. Main Content Area (Orb + Chat)
                 Expanded(
@@ -378,13 +379,14 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               ],
             ),
           ),
+        ),
 
-          // 6. Ambient Screensaver Overlay (From Mixin)
-          buildAmbientOverlay(),
-        ],
-      ),
-    );
-  }
+        // 6. Ambient Screensaver Overlay (From Mixin)
+        Positioned.fill(child: buildAmbientOverlay()),
+      ],
+    ),
+  );
+}
 
   Widget _buildNeuralHeader(int memoryCount) {
     return Container(
@@ -393,7 +395,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Left: System Identity
-          Flexible(
+          Expanded(
             flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,7 +449,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
           const SizedBox(width: 8),
 
           // Right: Controls & Memory Status
-          Flexible(
+          Expanded(
             flex: 3,
             child: FittedBox(
               fit: BoxFit.scaleDown,
