@@ -161,100 +161,105 @@ class _AmbientIdleOverlayState extends State<AmbientIdleOverlay>
             ),
 
             // 3. Main content
-            SafeArea(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Spacer(flex: 2),
+            Positioned.fill(
+              child: SafeArea(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Spacer(flex: 2),
 
-                    // Animated Friday Orb (simplified for ambient)
-                    RepaintBoundary(
-                      child: AnimatedBuilder(
-                        animation: _pulseController,
-                        builder: (context, child) {
-                          final scale = 1.0 + (_pulseController.value * 0.1);
-                          final opacity = 0.6 + (_pulseController.value * 0.4);
-                          return Container(
-                            width: 100 * scale,
-                            height: 100 * scale,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.cyanAccent.withOpacity(
-                                    opacity * 0.5,
+                      // Animated Friday Orb (simplified for ambient)
+                      RepaintBoundary(
+                        child: AnimatedBuilder(
+                          animation: _pulseController,
+                          builder: (context, child) {
+                            final scale = 1.0 + (_pulseController.value * 0.1);
+                            final opacity =
+                                0.6 + (_pulseController.value * 0.4);
+                            return Container(
+                              width: 100 * scale,
+                              height: 100 * scale,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.cyanAccent.withOpacity(
+                                      opacity * 0.5,
+                                    ),
+                                    blurRadius: 60,
+                                    spreadRadius: 20,
                                   ),
-                                  blurRadius: 60,
-                                  spreadRadius: 20,
-                                ),
-                                BoxShadow(
-                                  color: Colors.blue.withOpacity(opacity * 0.3),
-                                  blurRadius: 100,
-                                  spreadRadius: 40,
-                                ),
-                              ],
-                              gradient: RadialGradient(
-                                colors: [
-                                  Colors.cyanAccent.withOpacity(opacity),
-                                  Colors.blue.withOpacity(opacity * 0.5),
-                                  Colors.transparent,
+                                  BoxShadow(
+                                    color: Colors.blue.withOpacity(
+                                      opacity * 0.3,
+                                    ),
+                                    blurRadius: 100,
+                                    spreadRadius: 40,
+                                  ),
                                 ],
+                                gradient: RadialGradient(
+                                  colors: [
+                                    Colors.cyanAccent.withOpacity(opacity),
+                                    Colors.blue.withOpacity(opacity * 0.5),
+                                    Colors.transparent,
+                                  ],
+                                ),
                               ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 60),
+
+                      // Time display
+                      Text(
+                        _currentTime,
+                        style: GoogleFonts.orbitron(
+                          color: Colors.white,
+                          fontSize: 72,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: 8,
+                        ),
+                      ).animate().fadeIn(duration: 800.ms),
+
+                      const SizedBox(height: 8),
+
+                      // Date display
+                      Text(
+                        _currentDate,
+                        style: GoogleFonts.shareTechMono(
+                          color: Colors.white54,
+                          fontSize: 16,
+                          letterSpacing: 4,
+                        ),
+                      ).animate().fadeIn(duration: 800.ms, delay: 200.ms),
+
+                      const SizedBox(height: 40),
+
+                      // Quick info cards (lazy render)
+                      _buildInfoCards(),
+
+                      const Spacer(flex: 3),
+
+                      // Tap to wake hint
+                      Text(
+                            'TAP ANYWHERE TO WAKE',
+                            style: GoogleFonts.shareTechMono(
+                              color: Colors.white24,
+                              fontSize: 11,
+                              letterSpacing: 2,
                             ),
-                          );
-                        },
-                      ),
-                    ),
+                          )
+                          .animate(onPlay: (c) => c.repeat(reverse: true))
+                          .fadeIn(duration: 1500.ms)
+                          .then()
+                          .fadeOut(duration: 1500.ms),
 
-                    const SizedBox(height: 60),
-
-                    // Time display
-                    Text(
-                      _currentTime,
-                      style: GoogleFonts.orbitron(
-                        color: Colors.white,
-                        fontSize: 72,
-                        fontWeight: FontWeight.w300,
-                        letterSpacing: 8,
-                      ),
-                    ).animate().fadeIn(duration: 800.ms),
-
-                    const SizedBox(height: 8),
-
-                    // Date display
-                    Text(
-                      _currentDate,
-                      style: GoogleFonts.shareTechMono(
-                        color: Colors.white54,
-                        fontSize: 16,
-                        letterSpacing: 4,
-                      ),
-                    ).animate().fadeIn(duration: 800.ms, delay: 200.ms),
-
-                    const SizedBox(height: 40),
-
-                    // Quick info cards (lazy render)
-                    _buildInfoCards(),
-
-                    const Spacer(flex: 3),
-
-                    // Tap to wake hint
-                    Text(
-                          'TAP ANYWHERE TO WAKE',
-                          style: GoogleFonts.shareTechMono(
-                            color: Colors.white24,
-                            fontSize: 11,
-                            letterSpacing: 2,
-                          ),
-                        )
-                        .animate(onPlay: (c) => c.repeat(reverse: true))
-                        .fadeIn(duration: 1500.ms)
-                        .then()
-                        .fadeOut(duration: 1500.ms),
-
-                    const SizedBox(height: 40),
-                  ],
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
             ),

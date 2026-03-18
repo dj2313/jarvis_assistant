@@ -510,9 +510,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               ),
             ),
           ),
-
-          // 6. Ambient Screensaver Overlay (From Mixin)
-          buildAmbientOverlay(),
         ],
       ),
     );
