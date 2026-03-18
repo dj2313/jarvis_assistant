@@ -44,7 +44,7 @@ class MemoryService {
     }
   }
 
-  /// Retrieves relevant context from the 'Friday_memory' table.
+  /// Retrieves relevant context from the 'jarvis_memory' table.
   Future<String> retrieveContext(String query) async {
     try {
       // 1. Convert the search query into a vector
@@ -95,7 +95,7 @@ class MemoryService {
         return false;
       }
 
-      await _supabase.from('Friday_memory').insert({
+      await _supabase.from('jarvis_memory').insert({
         'user_id': userId, // Explicitly linking to user
         'content': content,
         'embedding': vector,
@@ -113,7 +113,7 @@ class MemoryService {
     try {
       // Use count option
       final response = await _supabase
-          .from('Friday_memory')
+          .from('jarvis_memory')
           .count(CountOption.exact);
       return response;
     } catch (e) {
@@ -125,7 +125,7 @@ class MemoryService {
   Future<void> wipeMemory() async {
     try {
       // Delete all rows where id is not 0 (effectively all)
-      await _supabase.from('Friday_memory').delete().neq('id', 0);
+      await _supabase.from('jarvis_memory').delete().neq('id', 0);
       debugPrint("Global Memory Wipe Initiated.");
     } catch (e) {
       debugPrint("Error wiping memory: $e");
@@ -136,7 +136,7 @@ class MemoryService {
   Future<List<Map<String, dynamic>>> getAllMemories() async {
     try {
       final response = await _supabase
-          .from('Friday_memory')
+          .from('jarvis_memory')
           .select('id, content, created_at')
           .order('created_at', ascending: false);
 
@@ -149,7 +149,7 @@ class MemoryService {
 
   Future<void> deleteMemory(int id) async {
     try {
-      await _supabase.from('Friday_memory').delete().eq('id', id);
+      await _supabase.from('jarvis_memory').delete().eq('id', id);
       debugPrint("Memory Node $id deleted.");
     } catch (e) {
       debugPrint("Error deleting memory: $e");

@@ -162,7 +162,7 @@ Refined, efficient, and loyal. Use "Sir" or "Ma'am".
 
   Stream<int> get memoryCountStream {
     return _supabase
-        .from('Friday_memory')
+        .from('jarvis_memory')
         .stream(primaryKey: ['id'])
         .map((list) => list.length);
   }
