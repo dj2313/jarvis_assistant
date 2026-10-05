@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config.dart';
 
 class MemoryService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  // Resolved lazily so constructing the service (and its tools) does not
+  // require Supabase to already be initialized.
+  late final SupabaseClient _supabase = Supabase.instance.client;
 
   // Using a popular, lightweight model for embeddings
   // Ensures compatibility with standard 384-dimension vector columns

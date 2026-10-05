@@ -8,7 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/friday_orb.dart';
 import '../services/voice_service.dart';
-import '../services/friday_brain_service.dart';
+import '../agent/friday_orchestrator.dart';
+import '../agent/agent_models.dart';
+import '../security/permission_guard.dart';
 import '../widgets/rich_message_card.dart';
 import '../widgets/ambient_idle_overlay.dart';
 import 'routines_screen.dart';
@@ -41,8 +43,10 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   bool _hasInteracted = false; // Track if chat should be shown
 
   final VoiceService _voiceService = VoiceService();
-  final FridayBrainService _brainService = FridayBrainService();
+  final FridayOrchestrator _orchestrator = FridayOrchestrator();
   StreamSubscription<double>? _amplitudeSub;
+  StreamSubscription<AgentState>? _orchestratorStateSub;
+  StreamSubscription<PendingConfirmation>? _confirmationSub;
 
   final List<Map<String, String>> _supportedLanguages = [
     {'name': 'EN', 'locale': 'en-GB'},
@@ -68,6 +72,9 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   @override
   void dispose() {
     _amplitudeSub?.cancel();
+    _orchestratorStateSub?.cancel();
+    _confirmationSub?.cancel();
+    _orchestrator.dispose();
     _textController.dispose();
     _scrollController.dispose();
     _particleController.dispose();
@@ -93,9 +100,9 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
 
   String _getTimeBasedGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return "Good Morning, Sir.";
-    if (hour < 17) return "Good Afternoon, Sir.";
-    return "Good Evening, Sir.";
+    if (hour < 12) return "Good morning, Sir. J.A.R.V.I.S. at your service.";
+    if (hour < 17) return "Good afternoon, Sir. All systems are online.";
+    return "Good evening, Sir. How may I assist you?";
   }
 
   Future<void> _initializeHistory() async {
@@ -109,7 +116,19 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     await _voiceService.speak(greeting);
 
     // Initializing history silently
-    await _brainService.initializeHistory();
+    await _orchestrator.brainService.initializeHistory();
+
+    // Subscribe to orchestrator state changes
+    _orchestratorStateSub = _orchestrator.stateStream.listen((agentState) {
+      if (!mounted) return;
+      _mapOrchestratorStateToUI(agentState);
+    });
+
+    // Subscribe to tool approval requests
+    _confirmationSub = _orchestrator.confirmationStream.listen((confirmation) {
+      if (!mounted) return;
+      _showApprovalSheet(confirmation);
+    });
   }
 
   Future<void> _playSound(String assetName) async {
@@ -122,7 +141,21 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     if (_state == AssistantState.idle || _state == AssistantState.speaking) {
       _startListening();
     } else if (_state == AssistantState.listening) {
-      await _voiceService.stopListening();
+      // Stop recording — Whisper transcribes and returns text
+      final text = await _voiceService.stopListening();
+      if (mounted && text.isNotEmpty) {
+        setState(() {
+          _liveTranscript = text;
+          _soundLevel = 0.0;
+        });
+        _handleUserCommand(text);
+      } else if (mounted) {
+        setState(() {
+          _state = AssistantState.idle;
+          _liveTranscript = "";
+          _soundLevel = 0.0;
+        });
+      }
     } else if (_state == AssistantState.thinking) {
       setState(() {
         _state = AssistantState.idle;
@@ -134,33 +167,40 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     setState(() {
       _state = AssistantState.listening;
       _liveTranscript = "Listening...";
-      _hasInteracted = true; // Show chat
+      _hasInteracted = true;
     });
     try {
       await _voiceService.startListening(
         onResult: (text) {
-          if (mounted) setState(() => _liveTranscript = text);
+          // Whisper transcription complete — send to orchestrator
+          if (mounted && text.isNotEmpty) {
+            setState(() {
+              _liveTranscript = text;
+              _soundLevel = 0.0;
+            });
+            _handleUserCommand(text);
+          } else if (mounted) {
+            setState(() {
+              _state = AssistantState.idle;
+              _liveTranscript = "";
+              _soundLevel = 0.0;
+            });
+          }
         },
         onStatus: (status) {
-          if (status == 'notListening') {
-            if (mounted) {
-              if (_state == AssistantState.listening &&
-                  _liveTranscript != "Listening..." &&
-                  _liveTranscript.isNotEmpty) {
-                _handleUserCommand(_liveTranscript);
-              } else {
-                setState(() {
-                  _state = AssistantState.idle;
-                  _liveTranscript = "";
-                  _soundLevel = 0.0;
-                });
-              }
+          if (status == 'notListening' && mounted) {
+            if (_state == AssistantState.listening) {
+              setState(() {
+                _state = AssistantState.idle;
+                _liveTranscript = "";
+                _soundLevel = 0.0;
+              });
             }
           }
         },
         onSoundLevel: (level) {
           if (mounted && _state == AssistantState.listening) {
-            setState(() => _soundLevel = ((level + 5) / 15).clamp(0.0, 1.0));
+            setState(() => _soundLevel = level.clamp(0.0, 1.0));
           }
         },
       );
@@ -169,7 +209,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     }
   }
 
-  void _handleUserCommand(String text) {
+  Future<void> _handleUserCommand(String text) async {
     if (text.trim().isEmpty) return;
     setState(() {
       _hasInteracted = true;
@@ -177,18 +217,18 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
       _liveTranscript = "";
       _textController.clear();
       _state = AssistantState.thinking;
-      _currentThoughtLine = "Initializing Neural Net...";
+      _currentThoughtLine = "Processing request...";
     });
     _playSound('processing');
     _scrollToBottom();
-    _processCommand(text);
+    // JARVIS brief acknowledgement before task execution
+    await _voiceService.speakAcknowledgement();
+    if (!mounted) return;
+    await _processCommand(text);
   }
 
   Future<void> _processCommand(String text) async {
-    final BrainResponse response = await _brainService.chatWithIntelligence(
-      text,
-      onPhaseChange: _handlePhaseChange,
-    );
+    final AgentResponse response = await _orchestrator.processRequest(text);
 
     if (!mounted) return;
 
@@ -197,7 +237,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
       _state = AssistantState.speaking;
       _messages.add(
         ChatMessage(
-          text: response.content,
+          text: response.text,
           thought: response.thought,
           isUser: false,
         ),
@@ -205,37 +245,54 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     });
     _playSound('response');
     _scrollToBottom();
-    await _voiceService.speak(response.content);
+    await _voiceService.speak(response.text, isTaskAck: true);
     if (mounted) {
       setState(() => _state = AssistantState.idle);
     }
   }
 
-  void _handlePhaseChange(AgentPhase phase, String? statusMessage) {
+  void _mapOrchestratorStateToUI(AgentState agentState) {
     if (!mounted) return;
     setState(() {
-      switch (phase) {
-        case AgentPhase.thinking:
+      switch (agentState) {
+        case AgentState.received:
+        case AgentState.classifying:
           _state = AssistantState.thinking;
-          _currentThoughtLine = statusMessage ?? "Analyzing Query...";
+          _currentThoughtLine = "Analyzing request...";
           break;
-        case AgentPhase.searchingWeb:
-          _state = AssistantState.searchingWeb;
-          _currentThoughtLine = statusMessage ?? "Scanning Web...";
+        case AgentState.collectingContext:
+          _state = AssistantState.thinking;
+          _currentThoughtLine = "Gathering context...";
           break;
-        case AgentPhase.searchingMemory:
+        case AgentState.retrievingMemory:
           _state = AssistantState.searchingMemory;
-          _currentThoughtLine = statusMessage ?? "Accessing Memory Vault...";
+          _currentThoughtLine = "Accessing memory banks...";
           break;
-        case AgentPhase.savingMemory:
-          _state = AssistantState.savingMemory;
-          _currentThoughtLine = statusMessage ?? "Saving to Core...";
+        case AgentState.planning:
+          _state = AssistantState.thinking;
+          _currentThoughtLine = "Formulating response...";
           break;
-        case AgentPhase.synthesizing:
+        case AgentState.waitingForConfirmation:
+          _state = AssistantState.thinking;
+          _currentThoughtLine = "Awaiting confirmation, Sir...";
+          break;
+        case AgentState.executing:
+          _state = AssistantState.searchingWeb;
+          _currentThoughtLine = "Executing task...";
+          break;
+        case AgentState.verifying:
           _state = AssistantState.synthesizing;
-          _currentThoughtLine = statusMessage ?? "Synthesizing...";
+          _currentThoughtLine = "Verifying results...";
           break;
-        case AgentPhase.complete:
+        case AgentState.completed:
+          _currentThoughtLine = null;
+          break;
+        case AgentState.failed:
+          _state = AssistantState.idle;
+          _currentThoughtLine = "Processing Failed";
+          break;
+        case AgentState.cancelled:
+          _state = AssistantState.idle;
           _currentThoughtLine = null;
           break;
       }
@@ -254,11 +311,188 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     });
   }
 
+  Future<void> _showApprovalSheet(PendingConfirmation confirmation) async {
+    HapticFeedback.mediumImpact();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF1A1A1A).withOpacity(0.95),
+                const Color(0xFF0E0E0E).withOpacity(0.95),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFFF9500).withOpacity(0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Tool Approval Required',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.exo2(
+                  color: const Color(0xFFFFB347),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                confirmation.decision.riskLevel.label.toUpperCase(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.rajdhani(
+                  color: Colors.orangeAccent,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildApprovalRow('Action', confirmation.toolName),
+              const SizedBox(height: 10),
+              _buildApprovalArgs(confirmation.args),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildApprovalButton(
+                      label: 'CANCEL',
+                      color: Colors.redAccent,
+                      onTap: () {
+                        _orchestrator.cancelConfirmation(confirmation.token);
+                        if (sheetContext.mounted) {
+                          Navigator.of(sheetContext).pop();
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildApprovalButton(
+                      label: 'APPROVE',
+                      color: Colors.greenAccent,
+                      onTap: () {
+                        _orchestrator.approveConfirmation(confirmation.token);
+                        if (sheetContext.mounted) {
+                          Navigator.of(sheetContext).pop();
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildApprovalRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: GoogleFonts.rajdhani(
+              color: Colors.white38,
+              fontSize: 14,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: GoogleFonts.rajdhani(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildApprovalArgs(Map<String, dynamic> args) {
+    if (args.isEmpty) {
+      return Text(
+        'No additional parameters',
+        style: GoogleFonts.rajdhani(color: Colors.white38, fontSize: 13),
+      );
+    }
+
+    final entries = args.entries.map((e) => '${e.key}: ${e.value}').join('\n');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Text(
+        entries,
+        style: GoogleFonts.rajdhani(
+          color: Colors.white70,
+          fontSize: 13,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApprovalButton({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.5)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.exo2(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _changeLanguage(String locale) async {
     HapticFeedback.selectionClick();
     await _voiceService.setLanguage(locale);
     setState(() {});
-    String confirmation = "Language recalibrated.";
+    String confirmation = "Language recalibrated, Sir.";
     _voiceService.speak(confirmation);
   }
 
@@ -267,7 +501,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF101010),
+      backgroundColor: const Color(0xFF000000),
       body: Stack(
         children: [
           // 1. Particle Background
@@ -287,8 +521,8 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                 painter: WaveformPainter(
                   amplitude: _soundLevel,
                   color: _state == AssistantState.listening
-                      ? Colors.blueAccent
-                      : Colors.cyanAccent,
+                      ? const Color(0xFFFF9500)
+                      : const Color(0xFFFFB347),
                 ),
               ),
             ),
@@ -299,94 +533,94 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                 children: [
                   // 3. Navbar with System Status Icons
                   StreamBuilder<int>(
-                    stream: _brainService.memoryCountStream,
+                    stream: _orchestrator.brainService.memoryCountStream,
                     builder: (context, snapshot) {
                       final count = snapshot.data ?? 0;
                       return RepaintBoundary(child: _buildNeuralHeader(count));
                     },
                   ),
 
-                // 4. Main Content Area (Orb + Chat)
-                Expanded(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Central Orb
-                      // Transitions to top when interacted
-                      AnimatedPositioned(
-                        duration: 800.ms,
-                        curve: Curves.easeOutCubic,
-                        top: _hasInteracted ? 0 : null,
-                        child: AnimatedContainer(
+                  // 4. Main Content Area (Orb + Chat)
+                  Expanded(
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Central Orb
+                        // Transitions to top when interacted
+                        AnimatedPositioned(
                           duration: 800.ms,
                           curve: Curves.easeOutCubic,
-                          width: _hasInteracted
-                              ? 100
-                              : 280, // Smaller when chatting
-                          height: _hasInteracted ? 100 : 280,
-                          child: FridayOrb(
-                            state: _state,
-                            soundLevel: _soundLevel,
-                            onTap: _handleOrbTap,
-                          ),
-                        ),
-                      ),
-
-                      // Chat Overlay
-                      if (_hasInteracted && _messages.isNotEmpty)
-                        Positioned.fill(
-                          top: 110, // Adjusted for smaller orb
-                          child: ShaderMask(
-                            shaderCallback: (Rect bounds) {
-                              return LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black,
-                                  Colors.black,
-                                  Colors.transparent,
-                                ],
-                                stops: [0.0, 0.05, 0.95, 1.0],
-                              ).createShader(bounds);
-                            },
-                            blendMode: BlendMode.dstIn,
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              child: _buildChatList(),
+                          top: _hasInteracted ? 0 : null,
+                          child: AnimatedContainer(
+                            duration: 800.ms,
+                            curve: Curves.easeOutCubic,
+                            width: _hasInteracted
+                                ? 100
+                                : 280, // Smaller when chatting
+                            height: _hasInteracted ? 100 : 280,
+                            child: FridayOrb(
+                              state: _state,
+                              soundLevel: _soundLevel,
+                              onTap: _handleOrbTap,
                             ),
                           ),
-                        ).animate().fadeIn(
-                          duration: 800.ms,
-                          curve: Curves.easeOut,
                         ),
 
-                      // Thinking Status
-                      if (_currentThoughtLine != null)
-                        Positioned(
-                          bottom: 20,
-                          child: _buildThinkingIndicator(),
-                        ),
-                    ],
+                        // Chat Overlay
+                        if (_hasInteracted && _messages.isNotEmpty)
+                          Positioned.fill(
+                            top: 110, // Adjusted for smaller orb
+                            child: ShaderMask(
+                              shaderCallback: (Rect bounds) {
+                                return LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black,
+                                    Colors.black,
+                                    Colors.transparent,
+                                  ],
+                                  stops: [0.0, 0.05, 0.95, 1.0],
+                                ).createShader(bounds);
+                              },
+                              blendMode: BlendMode.dstIn,
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                child: _buildChatList(),
+                              ),
+                            ),
+                          ).animate().fadeIn(
+                            duration: 800.ms,
+                            curve: Curves.easeOut,
+                          ),
+
+                        // Thinking Status
+                        if (_currentThoughtLine != null)
+                          Positioned(
+                            bottom: 20,
+                            child: _buildThinkingIndicator(),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
 
-                // 5. Floating Command Bar
-                _buildFloatingCommandBar(),
-                const SizedBox(height: 10),
-              ],
+                  // 5. Floating Command Bar
+                  _buildFloatingCommandBar(),
+                  const SizedBox(height: 10),
+                ],
+              ),
             ),
           ),
-        ),
 
-        // 6. Ambient Screensaver Overlay (From Mixin)
-        Positioned.fill(child: buildAmbientOverlay()),
-      ],
-    ),
-  );
-}
+          // 6. Ambient Screensaver Overlay (From Mixin)
+          Positioned.fill(child: buildAmbientOverlay()),
+        ],
+      ),
+    );
+  }
 
   Widget _buildNeuralHeader(int memoryCount) {
     return Container(
@@ -402,10 +636,10 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "FRIDAY CORE",
+                  "J.A.R.V.I.S.",
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.orbitron(
-                    color: Colors.cyan,
+                    color: const Color(0xFFFF9500),
                     fontWeight: FontWeight.bold,
                     letterSpacing: 2,
                     fontSize: 16,
@@ -418,11 +652,11 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: Colors.greenAccent,
+                        color: const Color(0xFFFFB347),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.greenAccent.withOpacity(0.5),
+                            color: const Color(0xFFFF9500).withOpacity(0.5),
                             blurRadius: 5,
                           ),
                         ],
@@ -431,10 +665,10 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        "NEURAL LINK: ACTIVE",
+                        "SYSTEMS: ONLINE",
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.shareTechMono(
-                          color: Colors.greenAccent.withOpacity(0.8),
+                          color: const Color(0xFFFFB347).withOpacity(0.8),
                           fontSize: 10,
                           letterSpacing: 1,
                         ),
@@ -474,12 +708,12 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.cyan.withOpacity(0.05),
-                        border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+                        color: const Color(0xFFFF9500).withOpacity(0.05),
+                        border: Border.all(color: const Color(0xFFFF9500).withOpacity(0.3)),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.cyan.withOpacity(0.1),
+                            color: const Color(0xFFFF9500).withOpacity(0.1),
                             blurRadius: 4,
                           ),
                         ],
@@ -489,13 +723,13 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                           Icon(
                             Icons.storage,
                             size: 14,
-                            color: Colors.cyan.withOpacity(0.8),
+                            color: const Color(0xFFFF9500).withOpacity(0.8),
                           ),
                           const SizedBox(width: 6),
                           Text(
                             "$memoryCount NODES",
                             style: GoogleFonts.shareTechMono(
-                              color: Colors.cyanAccent,
+                              color: const Color(0xFFFFB347),
                               fontSize: 12,
                             ),
                           ),
@@ -548,7 +782,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
           ),
         );
 
-        final result = await _brainService.checkProactiveStatus();
+        final result = await _orchestrator.brainService.checkProactiveStatus();
 
         if (!mounted) return;
 
@@ -620,7 +854,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
             end: Alignment.bottomRight,
           ),
           borderGradient: LinearGradient(
-            colors: [Colors.cyan.withOpacity(0.5), Colors.transparent],
+            colors: [const Color(0xFFFF9500).withOpacity(0.5), Colors.transparent],
           ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -628,20 +862,20 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "NEURAL DIAGNOSTIC",
+                  "SYSTEM DIAGNOSTIC",
                   style: GoogleFonts.orbitron(
-                    color: Colors.cyanAccent,
+                    color: const Color(0xFFFFB347),
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
-                const Divider(color: Colors.cyan),
+                const Divider(color: Color(0xFFFF9500)),
                 const SizedBox(height: 20),
 
-                _buildDiagnosticRow("Status", "ONLINE", Colors.greenAccent),
+                _buildDiagnosticRow("Status", "ONLINE", const Color(0xFFFFB347)),
                 _buildDiagnosticRow("Core Nodes", "$memoryCount", Colors.white),
-                _buildDiagnosticRow("Cycle", "ACTIVE", Colors.blueAccent),
-                _buildDiagnosticRow("Sentinel", "ARMED", Colors.orangeAccent),
+                _buildDiagnosticRow("Cycle", "ACTIVE", const Color(0xFFFF9500)),
+                _buildDiagnosticRow("Sentinel", "ARMED", const Color(0xFFFF6F00)),
 
                 const Spacer(),
                 Center(
@@ -650,7 +884,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                     child: Text(
                       "CLOSE DIAGNOSTIC",
                       style: GoogleFonts.shareTechMono(
-                        color: Colors.cyanAccent,
+                        color: const Color(0xFFFFB347),
                       ),
                     ),
                   ),
@@ -700,13 +934,23 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
             MaterialPageRoute(builder: (context) => const RoutinesScreen()),
           );
         } else if (value == 'delete_history') {
-          await _brainService.clearHistory();
+          await _orchestrator.brainService.clearHistory();
           setState(() {
             _messages.clear();
             _messages.add(
               ChatMessage(text: "Memory banks purged, Sir.", isUser: false),
             );
           });
+        } else if (value == 'reset_limits') {
+          _orchestrator.brainService.resetDailyLimits();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Daily usage limits reset, Sir."),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         } else if (value == 'logout') {
           // Implement logout logic here
           ScaffoldMessenger.of(context).showSnackBar(
@@ -719,7 +963,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
         }
       },
       color: const Color(0xFF1E1E1E),
-      icon: const Icon(Icons.more_vert, color: Colors.blueAccent, size: 20),
+      icon: const Icon(Icons.more_vert, color: Color(0xFFFF9500), size: 20),
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'routines',
@@ -727,7 +971,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
             children: [
               const Icon(
                 Icons.auto_fix_high,
-                color: Colors.cyanAccent,
+                color: Color(0xFFFFB347),
                 size: 18,
               ),
               const SizedBox(width: 10),
@@ -750,6 +994,23 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               const SizedBox(width: 10),
               Text(
                 "Purge Memory",
+                style: GoogleFonts.shareTechMono(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'reset_limits',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.restart_alt,
+                color: Color(0xFFFFB347),
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                "Reset Daily Limits",
                 style: GoogleFonts.shareTechMono(color: Colors.white),
               ),
             ],
@@ -800,7 +1061,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
             colors: [Colors.black54, Colors.black26],
           ),
           borderGradient: LinearGradient(
-            colors: [Colors.blueAccent.withOpacity(0.5), Colors.transparent],
+            colors: [const Color(0xFFFF9500).withOpacity(0.5), Colors.transparent],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -810,14 +1071,14 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                 height: 15,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.blueAccent,
+                  color: const Color(0xFFFF9500),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 _currentThoughtLine ?? "Processing...",
                 style: GoogleFonts.shareTechMono(
-                  color: Colors.blueAccent,
+                  color: const Color(0xFFFFB347),
                   fontSize: 12,
                 ),
               ),
@@ -845,7 +1106,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
               children: [
                 Icon(
                   Icons.terminal,
-                  color: Colors.blueAccent.withOpacity(0.7),
+                  color: const Color(0xFFFF9500).withOpacity(0.7),
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -879,7 +1140,7 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                   onPressed: _handleOrbTap,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blueAccent),
+                  icon: const Icon(Icons.send, color: Color(0xFFFF9500)),
                   onPressed: () => _handleUserCommand(_textController.text),
                 ),
               ],
@@ -908,9 +1169,9 @@ class ParticlePainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
     for (var particle in particles) {
       particle.update(size.width, size.height);
-      paint.color = Colors.blueAccent.withOpacity(
+      paint.color = const Color(0xFFFF9500).withOpacity(
         particle.opacity,
-      ); // Blue particles
+      ); // Amber particles
       canvas.drawCircle(Offset(particle.x, particle.y), particle.size, paint);
     }
   }

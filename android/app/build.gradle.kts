@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.Friday_assistant"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

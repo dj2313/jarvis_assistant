@@ -41,11 +41,11 @@ class RichMessageCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isUser
-                    ? Colors.blue.withOpacity(0.2)
+                    ? const Color(0xFFFF9500).withOpacity(0.15)
                     : const Color(0xFF1E1E1E).withOpacity(0.8),
                 border: Border.all(
                   color: isUser
-                      ? Colors.blueAccent.withOpacity(0.5)
+                      ? const Color(0xFFFFB347).withOpacity(0.5)
                       : Colors.white.withOpacity(0.1),
                   width: 1,
                 ),
@@ -59,15 +59,15 @@ class RichMessageCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.auto_awesome,
+                          Icons.hub_outlined,
                           size: 12,
-                          color: Colors.blueAccent,
+                          color: Color(0xFFFFB347),
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          "Friday",
+                          "J.A.R.V.I.S.",
                           style: GoogleFonts.orbitron(
-                            color: Colors.blueAccent,
+                            color: const Color(0xFFFFB347),
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -110,7 +110,7 @@ class RichMessageCard extends StatelessWidget {
           height: 1.5,
         ),
         strong: GoogleFonts.inter(
-          color: Colors.cyanAccent,
+          color: const Color(0xFFFFB347),
           fontWeight: FontWeight.bold,
         ),
         code: GoogleFonts.shareTechMono(
@@ -127,7 +127,7 @@ class RichMessageCard extends StatelessWidget {
           fontStyle: FontStyle.italic,
         ),
         blockquoteDecoration: BoxDecoration(
-          border: Border(left: BorderSide(color: Colors.cyanAccent, width: 4)),
+          border: Border(left: BorderSide(color: Color(0xFFFF9500), width: 4)),
         ),
       ),
     );

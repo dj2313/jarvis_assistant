@@ -9,9 +9,9 @@ class TokenManager {
   TokenManager._internal();
 
   // Limits - Adjust these based on your Groq free tier
-  static const int DAILY_CHAT_LIMIT = 5;
+  static const int DAILY_CHAT_LIMIT = 100;
   static const int MAX_TOKENS_PER_REQUEST = 512; // Reduced from 1024
-  static const int MAX_TOKENS_PER_DAY = 5000; // ~5 chats with reduced tokens
+  static const int MAX_TOKENS_PER_DAY = 50000; // Increased for development
 
   // Token tracking
   int _tokensUsedToday = 0;
@@ -84,11 +84,15 @@ class TokenManager {
 
     // Alert when approaching limits
     if (_chatsUsedToday >= DAILY_CHAT_LIMIT - 1) {
-      debugPrint("⚠️ Warning: Only ${getRemainingChats()} chat(s) remaining today!");
+      debugPrint(
+        "⚠️ Warning: Only ${getRemainingChats()} chat(s) remaining today!",
+      );
     }
 
     if (_tokensUsedToday >= MAX_TOKENS_PER_DAY - 1000) {
-      debugPrint("⚠️ Warning: Only ${getRemainingTokens()} tokens remaining today!");
+      debugPrint(
+        "⚠️ Warning: Only ${getRemainingTokens()} tokens remaining today!",
+      );
     }
   }
 

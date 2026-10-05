@@ -61,10 +61,7 @@ class AuthService {
   /// Sign In with Email & Password
   Future<void> signIn(String email, String password) async {
     try {
-      await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      await _supabase.auth.signInWithPassword(email: email, password: password);
     } catch (e) {
       debugPrint("Sign In Error: $e");
       rethrow;

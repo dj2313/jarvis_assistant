@@ -1,4 +1,4 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 enum AssistantState {
@@ -6,13 +6,14 @@ enum AssistantState {
   listening,
   thinking,
   speaking,
-  // ReAct Pattern States
-  searchingWeb, // Actively calling web_search tool
-  searchingMemory, // Actively calling search_memory tool
-  savingMemory, // Actively calling save_to_memory tool
-  synthesizing, // Processing tool results for final answer
+  searchingWeb,
+  searchingMemory,
+  savingMemory,
+  synthesizing,
 }
 
+/// J.A.R.V.I.S. holographic HUD orb — amber data-sphere with HUD framing.
+/// Fully procedural (no external image assets), matching the JARVIS look.
 class FridayOrb extends StatefulWidget {
   final AssistantState state;
   final VoidCallback onTap;
@@ -30,8 +31,14 @@ class FridayOrb extends StatefulWidget {
 }
 
 class _FridayOrbState extends State<FridayOrb> with TickerProviderStateMixin {
+  static const Color _amber = Color(0xFFFF9500);
+  static const Color _amberBright = Color(0xFFFFB347);
+  static const Color _amberDeep = Color(0xFFE65100);
+  static const Color _amberGlow = Color(0xFFFFCC80);
+
   late AnimationController _pulseController;
   late AnimationController _rotationController;
+  late AnimationController _sweepController;
 
   @override
   void initState() {
@@ -43,211 +50,532 @@ class _FridayOrbState extends State<FridayOrb> with TickerProviderStateMixin {
 
     _rotationController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 10),
+      duration: const Duration(seconds: 24),
+    )..repeat();
+
+    _sweepController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
     )..repeat();
   }
 
   @override
   void didUpdateWidget(FridayOrb oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.state != widget.state) {
-      _updateAnimationState();
-    }
+    if (oldWidget.state != widget.state) _updateAnimationState();
   }
 
   void _updateAnimationState() {
     switch (widget.state) {
       case AssistantState.idle:
         _pulseController.duration = const Duration(seconds: 4);
-        _rotationController.duration = const Duration(seconds: 10);
+        _rotationController.duration = const Duration(seconds: 24);
+        _sweepController.duration = const Duration(seconds: 6);
         break;
       case AssistantState.thinking:
-        _pulseController.duration = const Duration(milliseconds: 1000);
-        _rotationController.duration = const Duration(seconds: 2); // Fast spin
+        _pulseController.duration = const Duration(milliseconds: 700);
+        _rotationController.duration = const Duration(seconds: 3);
+        _sweepController.duration = const Duration(seconds: 2);
         break;
       case AssistantState.listening:
       case AssistantState.speaking:
-        _pulseController.duration = const Duration(milliseconds: 1000);
-        _rotationController.duration = const Duration(seconds: 20); // Slow spin
+        _pulseController.duration = const Duration(milliseconds: 900);
+        _rotationController.duration = const Duration(seconds: 16);
+        _sweepController.duration = const Duration(seconds: 4);
         break;
-      // ReAct Pattern States - Dynamic animations for tool execution
       case AssistantState.searchingWeb:
-        _pulseController.duration = const Duration(
-          milliseconds: 600,
-        ); // Fast pulse
-        _rotationController.duration = const Duration(
-          seconds: 1,
-        ); // Very fast spin
+        _pulseController.duration = const Duration(milliseconds: 450);
+        _rotationController.duration = const Duration(seconds: 1);
+        _sweepController.duration = const Duration(milliseconds: 800);
         break;
       case AssistantState.searchingMemory:
       case AssistantState.savingMemory:
-        _pulseController.duration = const Duration(milliseconds: 800);
-        _rotationController.duration = const Duration(milliseconds: 1500);
+        _pulseController.duration = const Duration(milliseconds: 600);
+        _rotationController.duration = const Duration(milliseconds: 1200);
+        _sweepController.duration = const Duration(seconds: 1);
         break;
       case AssistantState.synthesizing:
-        _pulseController.duration = const Duration(
-          milliseconds: 400,
-        ); // Rapid pulse
-        _rotationController.duration = const Duration(
-          milliseconds: 800,
-        ); // Very fast
+        _pulseController.duration = const Duration(milliseconds: 350);
+        _rotationController.duration = const Duration(milliseconds: 600);
+        _sweepController.duration = const Duration(milliseconds: 500);
         break;
     }
     if (!_pulseController.isAnimating) _pulseController.repeat(reverse: true);
     if (!_rotationController.isAnimating) _rotationController.repeat();
+    if (!_sweepController.isAnimating) _sweepController.repeat();
+  }
+
+  bool get _isAudioActive =>
+      widget.state == AssistantState.listening ||
+      widget.state == AssistantState.speaking;
+
+  double get _intensity {
+    if (_isAudioActive) return 0.6 + widget.soundLevel * 0.4;
+    if (widget.state == AssistantState.thinking ||
+        widget.state == AssistantState.searchingWeb ||
+        widget.state == AssistantState.synthesizing) {
+      return 0.85 + _pulseController.value * 0.15;
+    }
+    return 0.55 + _pulseController.value * 0.35;
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
     _rotationController.dispose();
+    _sweepController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic color based on state for premium FRIDAY feel
-    final Color primaryColor = _getStateColor();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double side =
+            math.max(constraints.maxWidth, constraints.maxHeight);
+        return GestureDetector(
+          onTap: widget.onTap,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            width: side,
+            height: side,
+            child: AnimatedBuilder(
+              animation: Listenable.merge([
+                _pulseController,
+                _rotationController,
+                _sweepController,
+              ]),
+              builder: (context, _) {
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Ambient bloom
+                    _buildBloom(side),
 
-    // Determine Scale based on Sound Level (0.0 to 1.0) or Pulse (0.0 to 1.0)
-    // If speaking/listening, soundLevel overrides pulse for outer glow
-    final isAudioActive =
-        widget.state == AssistantState.listening ||
-        widget.state == AssistantState.speaking;
-
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: SizedBox(
-        width: 200, // Fixed container size to prevent layout jumps
-        height: 200,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Layer 1: Outer Glow (Reacts to Audio & State)
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                double scale = isAudioActive
-                    ? 1.0 +
-                          (widget.soundLevel * 0.5) // Audio Reaction
-                    : 1.0 + (_pulseController.value * 0.2); // Idle Breathing
-
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 120 * scale,
-                  height: 120 * scale,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        primaryColor.withOpacity(0.5),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.2, 1.0],
+                    // HUD corner brackets + top status bar
+                    CustomPaint(
+                      size: Size.square(side),
+                      painter: _HudFramePainter(
+                        color: _amberBright,
+                        intensity: _intensity,
+                      ),
                     ),
-                  ),
+
+                    // Outer faint containment ring
+                    CustomPaint(
+                      size: Size.square(side * 0.92),
+                      painter: _CircleRingPainter(
+                        radius: 0.5,
+                        thickness: 0.8,
+                        color: _amber.withValues(alpha: 0.25 * _intensity),
+                      ),
+                    ),
+
+                    // Counter-rotating data orbit ring
+                    Transform.rotate(
+                      angle: -_rotationController.value * 2 * math.pi,
+                      child: CustomPaint(
+                        size: Size.square(side * 0.88),
+                        painter: _DataOrbitRingPainter(
+                          color: _amberBright,
+                          intensity: _intensity,
+                          seed: 1,
+                        ),
+                      ),
+                    ),
+
+                    // Core data sphere (procedural particles + hot core)
+                    Transform.rotate(
+                      angle: _rotationController.value * 2 * math.pi * 0.35,
+                      child: SizedBox(
+                        width: side * 0.72,
+                        height: side * 0.72,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Procedural particle sphere overlay
+                            CustomPaint(
+                              size: Size.square(side * 0.72),
+                              painter: _DataSpherePainter(
+                                rotation: _rotationController.value,
+                                sweep: _sweepController.value,
+                                intensity: _intensity,
+                                color: _amberBright,
+                              ),
+                            ),
+
+                            // Inner hot core
+                            Container(
+                              width:
+                                  side * 0.14 * (0.9 + _intensity * 0.15),
+                              height:
+                                  side * 0.14 * (0.9 + _intensity * 0.15),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    _amberGlow,
+                                    _amber.withValues(alpha: 0.0),
+                                  ],
+                                  stops: const [0.0, 1.0],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _amber.withValues(
+                                      alpha: 0.9 * _intensity,
+                                    ),
+                                    blurRadius: side * 0.1,
+                                    spreadRadius: side * 0.02,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Sweeping scan arc (matches reference motion indicator)
+                    Transform.rotate(
+                      angle: _sweepController.value * 2 * math.pi,
+                      child: CustomPaint(
+                        size: Size.square(side * 0.76),
+                        painter: _SweepArcPainter(
+                          color: _amberBright,
+                          intensity: _intensity * 0.7,
+                        ),
+                      ),
+                    ),
+
+                    // Bottom-right radar gauge
+                    Positioned(
+                      right: side * 0.06,
+                      bottom: side * 0.06,
+                      child: CustomPaint(
+                        size: Size.square(side * 0.14),
+                        painter: _RadarGaugePainter(
+                          rotation: _rotationController.value,
+                          color: _amberBright,
+                          intensity: _intensity,
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
+          ),
+        );
+      },
+    );
+  }
 
-            // Layer 2: Rotating Ring (Middle)
-            AnimatedBuilder(
-              animation: _rotationController,
-              builder: (context, child) {
-                return Transform.rotate(
-                  angle: _rotationController.value * 2 * pi,
-                  child: CustomPaint(
-                    size: const Size(100, 100),
-                    painter: _RingPainter(color: primaryColor),
-                  ),
-                );
-              },
-            ),
-
-            // Layer 3: Inner Core (Solid with dynamic glow)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor,
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
+  Widget _buildBloom(double side) {
+    return Container(
+      width: side * 0.85,
+      height: side * 0.85,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            _amber.withValues(alpha: 0.35 * _intensity),
+            _amberDeep.withValues(alpha: 0.12 * _intensity),
+            Colors.transparent,
           ],
+          stops: const [0.2, 0.55, 1.0],
         ),
       ),
     );
   }
-
-  /// Returns the appropriate color based on current state
-  /// - Amber/Gold for processing states (intense processing feel)
-  /// - Cyan for idle, listening, speaking (calm/ready state)
-  Color _getStateColor() {
-    switch (widget.state) {
-      // Processing states = Amber/Gold (Intense Processing)
-      case AssistantState.thinking:
-      case AssistantState.searchingWeb:
-      case AssistantState.searchingMemory:
-      case AssistantState.savingMemory:
-      case AssistantState.synthesizing:
-        return const Color(0xFFFFB300); // Amber/Gold
-
-      // Calm states = Cyan (Ready/Active)
-      case AssistantState.idle:
-      case AssistantState.listening:
-      case AssistantState.speaking:
-        return Colors.cyanAccent;
-    }
-  }
 }
 
-class _RingPainter extends CustomPainter {
+// ─── HUD corner brackets + top status bar ───────────────────────────────────
+
+class _HudFramePainter extends CustomPainter {
   final Color color;
-  _RingPainter({required this.color});
+  final double intensity;
+
+  _HudFramePainter({required this.color, required this.intensity});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(0.8)
+      ..color = color.withValues(alpha: 0.75 * intensity)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.square;
 
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
+    final w = size.width;
+    final h = size.height;
+    final inset = w * 0.08;
+    final cornerLen = w * 0.07;
 
-    // Draw dashed circle
-    const double dashWidth = 20;
-    const double dashSpace = 20;
-    double startAngle = 0;
+    // Top-left bracket
+    canvas.drawLine(Offset(inset, inset), Offset(inset + cornerLen, inset), paint);
+    canvas.drawLine(Offset(inset, inset), Offset(inset, inset + cornerLen), paint);
 
-    while (startAngle < 360) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle * (pi / 180),
-        15 * (pi / 180), // Dash length in rad matches visual look
-        false,
-        paint,
-      );
-      startAngle += 45; // 8 segments
-    }
+    // Top-right bracket
+    canvas.drawLine(Offset(w - inset, inset), Offset(w - inset - cornerLen, inset), paint);
+    canvas.drawLine(Offset(w - inset, inset), Offset(w - inset, inset + cornerLen), paint);
 
-    // Draw inner thin ring
-    final innerPaint = Paint()
-      ..color = color.withOpacity(0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(center, radius * 0.8, innerPaint);
+    // Bottom-left bracket
+    canvas.drawLine(Offset(inset, h - inset), Offset(inset + cornerLen, h - inset), paint);
+    canvas.drawLine(Offset(inset, h - inset), Offset(inset, h - inset - cornerLen), paint);
+
+    // Top status bar
+    final barPaint = Paint()
+      ..color = color.withValues(alpha: 0.5 * intensity)
+      ..strokeWidth = 0.8;
+    final barY = inset * 0.55;
+    canvas.drawLine(Offset(w * 0.35, barY), Offset(w * 0.65, barY), barPaint);
+    canvas.drawLine(Offset(w * 0.38, barY + 4), Offset(w * 0.62, barY + 4), barPaint);
+
+    // Status dots
+    final dotPaint = Paint()
+      ..color = color.withValues(alpha: 0.9 * intensity)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(w * 0.5 - 6, barY - 6), 1.5, dotPaint);
+    canvas.drawCircle(Offset(w * 0.5 + 6, barY - 6), 1.5, dotPaint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _HudFramePainter old) =>
+      old.intensity != intensity || old.color != color;
+}
+
+// ─── Data orbit ring (fine segmented arcs) ──────────────────────────────────
+
+class _DataOrbitRingPainter extends CustomPainter {
+  final Color color;
+  final double intensity;
+  final int seed;
+
+  _DataOrbitRingPainter({
+    required this.color,
+    required this.intensity,
+    required this.seed,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 * 0.96;
+    final rng = math.Random(seed);
+
+    for (int i = 0; i < 48; i++) {
+      final start = (i / 48) * 2 * math.pi;
+      final span = (rng.nextDouble() * 0.04 + 0.01);
+      final opacity = (rng.nextDouble() * 0.5 + 0.3) * intensity;
+      final paint = Paint()
+        ..color = color.withValues(alpha: opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = rng.nextDouble() * 1.2 + 0.4
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: r),
+        start,
+        span,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DataOrbitRingPainter old) =>
+      old.intensity != intensity;
+}
+
+// ─── Dense particle data-sphere ─────────────────────────────────────────────
+
+class _DataSpherePainter extends CustomPainter {
+  final double rotation;
+  final double sweep;
+  final double intensity;
+  final Color color;
+
+  _DataSpherePainter({
+    required this.rotation,
+    required this.sweep,
+    required this.intensity,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxR = size.width / 2;
+    final rng = math.Random(42);
+
+    for (int i = 0; i < 420; i++) {
+      final theta = rng.nextDouble() * 2 * math.pi + rotation * 2 * math.pi;
+      final phi = rng.nextDouble() * math.pi;
+      final depth = math.sin(phi);
+      final x = center.dx + maxR * 0.88 * math.sin(phi) * math.cos(theta);
+      final y = center.dy + maxR * 0.88 * math.cos(phi) * 0.95;
+
+      final distFromCenter = math.sqrt(
+        math.pow(x - center.dx, 2) + math.pow(y - center.dy, 2),
+      );
+      if (distFromCenter > maxR * 0.92) continue;
+
+      final alpha = (0.15 + depth * 0.55) * intensity;
+      final dotSize = rng.nextDouble() * 1.2 + 0.3;
+
+      if (i % 7 == 0) {
+        final len = rng.nextDouble() * 8 + 3;
+        final angle = theta + sweep * math.pi;
+        final paint = Paint()
+          ..color = color.withValues(alpha: alpha * 0.8)
+          ..strokeWidth = 0.6
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x + math.cos(angle) * len, y + math.sin(angle) * len),
+          paint,
+        );
+      } else {
+        final paint = Paint()
+          ..color = color.withValues(alpha: alpha)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(Offset(x, y), dotSize, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DataSpherePainter old) =>
+      old.rotation != rotation ||
+      old.sweep != sweep ||
+      old.intensity != intensity;
+}
+
+// ─── Sweeping translucent arc ───────────────────────────────────────────────
+
+class _SweepArcPainter extends CustomPainter {
+  final Color color;
+  final double intensity;
+
+  _SweepArcPainter({required this.color, required this.intensity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 * 0.92;
+    final rect = Rect.fromCircle(center: center, radius: r);
+
+    final gradient = SweepGradient(
+      startAngle: 0,
+      endAngle: math.pi / 3,
+      colors: [
+        Colors.transparent,
+        color.withValues(alpha: 0.0),
+        color.withValues(alpha: 0.35 * intensity),
+        color.withValues(alpha: 0.15 * intensity),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.1, 0.25, 0.4, 0.55],
+    );
+
+    final paint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.35
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+    canvas.drawArc(rect, -math.pi / 6, math.pi / 2.5, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SweepArcPainter old) =>
+      old.intensity != intensity;
+}
+
+// ─── Bottom-right radar gauge ───────────────────────────────────────────────
+
+class _RadarGaugePainter extends CustomPainter {
+  final double rotation;
+  final Color color;
+  final double intensity;
+
+  _RadarGaugePainter({
+    required this.rotation,
+    required this.color,
+    required this.intensity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final ringPaint = Paint()
+      ..color = color.withValues(alpha: 0.6 * intensity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    for (int i = 1; i <= 3; i++) {
+      canvas.drawCircle(center, r * i / 3, ringPaint);
+    }
+
+    for (int i = 0; i < 12; i++) {
+      final angle = i * math.pi / 6;
+      final inner = r * 0.75;
+      final outer = r * 0.95;
+      canvas.drawLine(
+        Offset(center.dx + inner * math.cos(angle), center.dy + inner * math.sin(angle)),
+        Offset(center.dx + outer * math.cos(angle), center.dy + outer * math.sin(angle)),
+        ringPaint,
+      );
+    }
+
+    final sweepAngle = rotation * 2 * math.pi;
+    final needlePaint = Paint()
+      ..color = color.withValues(alpha: 0.8 * intensity)
+      ..strokeWidth = 1.0;
+    canvas.drawLine(
+      center,
+      Offset(center.dx + r * 0.7 * math.cos(sweepAngle),
+          center.dy + r * 0.7 * math.sin(sweepAngle)),
+      needlePaint,
+    );
+
+    canvas.drawCircle(center, 2, Paint()..color = color.withValues(alpha: intensity));
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadarGaugePainter old) =>
+      old.rotation != rotation || old.intensity != intensity;
+}
+
+// ─── Simple circle ring ─────────────────────────────────────────────────────
+
+class _CircleRingPainter extends CustomPainter {
+  final double radius;
+  final double thickness;
+  final Color color;
+
+  _CircleRingPainter({
+    required this.radius,
+    required this.thickness,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = math.min(size.width, size.height) / 2 * radius;
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = thickness,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleRingPainter old) =>
+      old.color != color;
 }

@@ -23,10 +23,8 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscurePassword = true;
 
   // Password validation states (only shown during signup)
-  bool get _hasUppercase =>
-      RegExp(r'[A-Z]').hasMatch(_passwordController.text);
-  bool get _hasLowercase =>
-      RegExp(r'[a-z]').hasMatch(_passwordController.text);
+  bool get _hasUppercase => RegExp(r'[A-Z]').hasMatch(_passwordController.text);
+  bool get _hasLowercase => RegExp(r'[a-z]').hasMatch(_passwordController.text);
   bool get _hasNumber => RegExp(r'[0-9]').hasMatch(_passwordController.text);
   bool get _hasValidLength =>
       _passwordController.text.length >= 6 &&
@@ -155,27 +153,28 @@ class _AuthScreenState extends State<AuthScreen> {
           Positioned(
             top: -100,
             left: -100,
-            child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blueAccent.withOpacity(0.2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blueAccent.withOpacity(0.3),
-                        blurRadius: 100,
-                        spreadRadius: 20,
+            child:
+                Container(
+                      width: 300,
+                      height: 300,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blueAccent.withOpacity(0.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blueAccent.withOpacity(0.3),
+                            blurRadius: 100,
+                            spreadRadius: 20,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scale(
-                  begin: const Offset(1, 1),
-                  end: const Offset(1.2, 1.2),
-                  duration: 4.seconds,
-                ),
+                    )
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .scale(
+                      begin: const Offset(1, 1),
+                      end: const Offset(1.2, 1.2),
+                      duration: 4.seconds,
+                    ),
           ),
 
           SafeArea(
@@ -283,8 +282,9 @@ class _AuthScreenState extends State<AuthScreen> {
                                       border: Border.all(
                                         color: _isLoading
                                             ? Colors.transparent
-                                            : Colors.cyanAccent
-                                                .withOpacity(0.5),
+                                            : Colors.cyanAccent.withOpacity(
+                                                0.5,
+                                              ),
                                       ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -378,17 +378,13 @@ class _AuthScreenState extends State<AuthScreen> {
                         ? Icons.check_circle_rounded
                         : Icons.radio_button_unchecked,
                     size: 14,
-                    color: rule.passed
-                        ? Colors.greenAccent
-                        : Colors.white24,
+                    color: rule.passed ? Colors.greenAccent : Colors.white24,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     rule.label,
                     style: GoogleFonts.shareTechMono(
-                      color: rule.passed
-                          ? Colors.greenAccent
-                          : Colors.white30,
+                      color: rule.passed ? Colors.greenAccent : Colors.white30,
                       fontSize: 11,
                     ),
                   ),

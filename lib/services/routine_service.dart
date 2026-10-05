@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/routine.dart';
-import 'Friday_brain_service.dart';
+import 'friday_brain_service.dart';
 
 /// RoutineService - Manages automation workflows
 /// Uses lazy loading and caching for optimal performance

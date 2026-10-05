@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <queries>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
@@ -42,6 +44,32 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
+    <!-- Package visibility: allow detecting these apps so we can launch them.
+         Required on Android 11+ (API 30+). -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.android.chrome" />
+        <package android:name="com.google.android.apps.photos" />
+        <package android:name="com.google.android.apps.nbu.files" />
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.google.android.calendar" />
+        <package android:name="com.google.android.deskclock" />
+        <package android:name="com.android.calculator2" />
+        <package android:name="com.android.camera" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="us.zoom.videomeetings" />
+        <package android:name="com.microsoft.teams" />
+        <package android:name="com.Slack" />
+        <package android:name="com.discord" />
+        <package android:name="com.twitter.android" />
+    </queries>
+
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.

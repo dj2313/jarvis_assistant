@@ -18,11 +18,15 @@ Future<void> main() async {
     debugPrint("Warning: Could not load .env file: $e");
   }
 
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: Config.supabaseUrl,
-    anonKey: Config.supabaseAnonKey,
-  );
+  // Initialize Supabase (non-fatal: the app shows an error UI if it fails)
+  try {
+    await Supabase.initialize(
+      url: Config.supabaseUrl,
+      anonKey: Config.supabaseAnonKey,
+    );
+  } catch (e) {
+    debugPrint("ERROR: Failed to initialize Supabase: $e");
+  }
 
   // Initialize Workmanager
   await Workmanager().initialize(

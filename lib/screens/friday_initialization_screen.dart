@@ -67,19 +67,19 @@ class _FridayInitializationScreenState extends State<FridayInitializationScreen>
 
     // 4. Run Checks (Faster)
     if (!mounted) return;
-    await _addLog("ESTABLISHING NEURAL LINK...", 400);
+    await _addLog("INITIALIZING J.A.R.V.I.S. CORE...", 400);
     if (!mounted) return;
     await _addLog("[OK] GROQ_API_HANDSHAKE_COMPLETE", 300);
     if (!mounted) return;
-    await _addLog("[OK] SUPABASE_MEMORY_VAULT_ONLINE", 300);
+    await _addLog("[OK] SUPABASE_MEMORY_BANKS_ONLINE", 300);
     if (!mounted) return;
-    await _addLog("CALIBRATING AUDITORY SENSORS...", 400);
+    await _addLog("CALIBRATING VOICE MODULE (EN-GB)...", 400);
     if (!mounted) return;
-    await _addLog("[OK] VOICE_MODULE_READY (EN-GB)", 300);
+    await _addLog("[OK] JARVIS_VOICE_MODULE_READY", 300);
 
     // 5. Finalize
     if (!mounted) return;
-    await _addLog("ALL SYSTEMS OPERATIONAL.", 800);
+    await _addLog("ALL SYSTEMS NOMINAL, SIR.", 800);
 
     if (!mounted) return;
     _navigateToHome();
@@ -132,7 +132,7 @@ class _FridayInitializationScreenState extends State<FridayInitializationScreen>
                     color: _showCircle ? Colors.transparent : Colors.white,
                     border: _showCircle
                         ? Border.all(
-                            color: Colors.cyanAccent.withOpacity(0.5),
+                            color: const Color(0xFFFF9500).withOpacity(0.5),
                             width: 0.5,
                           )
                         : null,
@@ -154,7 +154,7 @@ class _FridayInitializationScreenState extends State<FridayInitializationScreen>
                   Text(
                     _loadingText,
                     style: GoogleFonts.shareTechMono(
-                      color: Colors.cyanAccent,
+                      color: const Color(0xFFFFB347),
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2.0,
@@ -169,8 +169,8 @@ class _FridayInitializationScreenState extends State<FridayInitializationScreen>
                           Icon(
                             log.contains("[OK]") ? Icons.check : Icons.hub,
                             color: log.contains("[OK]")
-                                ? Colors.greenAccent
-                                : Colors.cyan.withOpacity(0.5),
+                                ? const Color(0xFFFFB347)
+                                : const Color(0xFFFF9500).withOpacity(0.5),
                             size: 12,
                           ),
                           const SizedBox(width: 8),

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
-import 'package:friday_assistant/screens/Friday_home_screen.dart';
+import 'package:friday_assistant/screens/friday_home_screen.dart';
 
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});

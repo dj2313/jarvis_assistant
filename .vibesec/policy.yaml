@@ -1,0 +1,46 @@
+version: "1.0"
+default_decision: ask
+rules:
+  - id: protect-env
+    resource: "**/.env*"
+    action: "*"
+    decision: block
+    reason: Access to environment file secrets is restricted
+  - id: protect-ssh-aws
+    resource: "{**/.ssh/**,**/.aws/**,**/*.pem,**/*.key,**/*.p12,**/*.crt}"
+    action: "*"
+    decision: block
+    reason: Access to system credentials or private keys is restricted
+  - id: protect-prod-config
+    resource: "{**/prod.config.*,**/production.json,**/config/production.*}"
+    action: "*"
+    decision: ask
+    reason: Modifying production configuration requires developer confirmation
+  - id: block-destructive-rm
+    command_pattern: .*rm\s+-rf\s+([\/\~\.]|\.\.).*
+    decision: block
+    reason: Destructive directory deletion command is strictly blocked
+  - id: block-curl-pipe-sh
+    command_pattern: .*(curl|wget)\s+.*\|\s*(sh|bash|zsh|powershell).*
+    decision: block
+    reason: Piping untrusted remote scripts directly into shell is blocked
+  - id: ask-sudo
+    command_pattern: .*sudo\s+.*
+    decision: ask
+    reason: Privilege escalation via sudo requires developer approval
+  - id: ask-git-force-push
+    command_pattern: .*git\s+push\s+.*--force.*
+    decision: ask
+    reason: Git force pushing requires developer approval
+  - id: ask-db-drop
+    command_pattern: .*(DROP\s+DATABASE|DROP\s+TABLE|terraform\s+destroy).*
+    decision: ask
+    reason: Destructive database or infrastructure command requires approval
+  - id: allow-safe-dev-tools
+    command_pattern: ^(node|npm|npx|yarn|pnpm|git|python|pytest|echo)\s+.*
+    decision: allow
+    reason: Standard local development tool command allowed
+  - id: allow-git-status
+    command_pattern: ^git\s+(status|diff|log|branch)$
+    decision: allow
+    reason: Safe git query command allowed

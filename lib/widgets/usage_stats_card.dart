@@ -32,18 +32,12 @@ class UsageStatsCard extends StatelessWidget {
       linearGradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [
-          Colors.cyan.withOpacity(0.1),
-          Colors.blue.withOpacity(0.1),
-        ],
+        colors: [Colors.cyan.withOpacity(0.1), Colors.blue.withOpacity(0.1)],
       ),
       borderGradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [
-          Colors.cyan.withOpacity(0.5),
-          Colors.blue.withOpacity(0.5),
-        ],
+        colors: [Colors.cyan.withOpacity(0.5), Colors.blue.withOpacity(0.5)],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -90,7 +84,11 @@ class UsageStatsCard extends StatelessWidget {
             // Reset time info
             Row(
               children: [
-                Icon(Icons.schedule, size: 12, color: Colors.cyan.withOpacity(0.7)),
+                Icon(
+                  Icons.schedule,
+                  size: 12,
+                  color: Colors.cyan.withOpacity(0.7),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Resets at midnight',
@@ -155,12 +153,7 @@ class UsageStatsCard extends StatelessWidget {
             widthFactor: percentage / 100,
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.cyan,
-                    Colors.blue,
-                  ],
-                ),
+                gradient: LinearGradient(colors: [Colors.cyan, Colors.blue]),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

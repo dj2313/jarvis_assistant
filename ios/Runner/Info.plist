@@ -49,5 +49,7 @@
 	<string>This app needs access to microphone for voice commands.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app needs speech recognition to understand commands.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Friday uses your location for nearby recommendations and GPS navigation.</string>
 </dict>
 </plist>
