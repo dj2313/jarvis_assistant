@@ -37,7 +37,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   final ScrollController _scrollController = ScrollController();
 
   final List<ChatMessage> _messages = [];
-  String _liveTranscript = "";
   double _soundLevel = 0.0;
   String? _currentThoughtLine;
   bool _hasInteracted = false; // Track if chat should be shown
@@ -47,14 +46,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   StreamSubscription<double>? _amplitudeSub;
   StreamSubscription<AgentState>? _orchestratorStateSub;
   StreamSubscription<PendingConfirmation>? _confirmationSub;
-
-  final List<Map<String, String>> _supportedLanguages = [
-    {'name': 'EN', 'locale': 'en-GB'},
-    {'name': 'FR', 'locale': 'fr-FR'},
-    {'name': 'DE', 'locale': 'de-DE'},
-    {'name': 'ES', 'locale': 'es-ES'},
-    {'name': 'HI', 'locale': 'hi-IN'},
-  ];
 
   late AnimationController _particleController;
 
@@ -145,14 +136,12 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
       final text = await _voiceService.stopListening();
       if (mounted && text.isNotEmpty) {
         setState(() {
-          _liveTranscript = text;
           _soundLevel = 0.0;
         });
         _handleUserCommand(text);
       } else if (mounted) {
         setState(() {
           _state = AssistantState.idle;
-          _liveTranscript = "";
           _soundLevel = 0.0;
         });
       }
@@ -166,7 +155,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   Future<void> _startListening() async {
     setState(() {
       _state = AssistantState.listening;
-      _liveTranscript = "Listening...";
       _hasInteracted = true;
     });
     try {
@@ -175,14 +163,12 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
           // Whisper transcription complete — send to orchestrator
           if (mounted && text.isNotEmpty) {
             setState(() {
-              _liveTranscript = text;
               _soundLevel = 0.0;
             });
             _handleUserCommand(text);
           } else if (mounted) {
             setState(() {
               _state = AssistantState.idle;
-              _liveTranscript = "";
               _soundLevel = 0.0;
             });
           }
@@ -192,7 +178,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
             if (_state == AssistantState.listening) {
               setState(() {
                 _state = AssistantState.idle;
-                _liveTranscript = "";
                 _soundLevel = 0.0;
               });
             }
@@ -214,7 +199,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     setState(() {
       _hasInteracted = true;
       _messages.add(ChatMessage(text: text, isUser: true));
-      _liveTranscript = "";
       _textController.clear();
       _state = AssistantState.thinking;
       _currentThoughtLine = "Processing request...";
@@ -486,14 +470,6 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
         ),
       ),
     );
-  }
-
-  Future<void> _changeLanguage(String locale) async {
-    HapticFeedback.selectionClick();
-    await _voiceService.setLanguage(locale);
-    setState(() {});
-    String confirmation = "Language recalibrated, Sir.";
-    _voiceService.speak(confirmation);
   }
 
   // --- UI Layout ---

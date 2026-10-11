@@ -1,6 +1,4 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -44,6 +42,7 @@ class _MemoryVaultScreenState extends State<MemoryVaultScreen> {
 
     try {
       await _memoryService.deleteMemory(id);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -59,6 +58,7 @@ class _MemoryVaultScreenState extends State<MemoryVaultScreen> {
       setState(() {
         _memories.insert(index, backup);
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Deletion Failed: $e")));

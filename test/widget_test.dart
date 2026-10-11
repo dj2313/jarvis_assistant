@@ -4,7 +4,6 @@ import 'package:friday_assistant/tools/tool_bootstrap.dart';
 import 'package:friday_assistant/tools/friday_tool.dart';
 import 'package:friday_assistant/tools/current_time_tool.dart';
 import 'package:friday_assistant/tools/weather_tool.dart';
-import 'package:friday_assistant/agent/agent_models.dart';
 import 'package:friday_assistant/services/response_sanitizer.dart';
 
 void main() {

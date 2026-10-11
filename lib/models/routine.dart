@@ -1,6 +1,5 @@
-/// Routine Model - Represents an automated workflow
-/// Uses efficient JSON serialization for Supabase storage
-
+/// Routine Model - Represents an automated workflow.
+/// Uses efficient JSON serialization for Supabase storage.
 class RoutineAction {
   final String
   type; // 'weather', 'news', 'calendar', 'speak', 'notify', 'custom'

@@ -206,7 +206,6 @@ class _CircularRevealRoute extends PageRouteBuilder {
         pageBuilder: (context, animation, secondaryAnimation) => page,
         transitionDuration: const Duration(milliseconds: 1000),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          var screenSize = MediaQuery.of(context).size;
           return ClipPath(
             clipper: _CircleRevealClipper(animation.value),
             child: child,

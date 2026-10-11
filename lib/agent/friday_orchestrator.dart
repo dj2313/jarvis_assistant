@@ -244,8 +244,9 @@ class FridayOrchestrator extends ChangeNotifier {
     buffer.writeln('Timezone: ${context.timezone}');
     buffer.writeln('Battery: ${context.batteryPercent}%');
     buffer.writeln('Network: ${context.networkType}');
-    if (context.location != null)
+    if (context.location != null) {
       buffer.writeln('Location: ${context.location}');
+    }
     if (context.nextCalendarEvent != null) {
       buffer.writeln('Next Event: ${context.nextCalendarEvent}');
     }

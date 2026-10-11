@@ -29,10 +29,7 @@ Future<void> main() async {
   }
 
   // Initialize Workmanager
-  await Workmanager().initialize(
-    callbackDispatcher,
-    isInDebugMode: true, // Remove or set to false in production
-  );
+  await Workmanager().initialize(callbackDispatcher);
 
   // Determine Initial Screen
   final bool isLoggedIn = AuthService().isLoggedIn;
@@ -75,7 +72,7 @@ void callbackDispatcher() {
     // Note: Background tasks need their own Supabase init if accessed
     // 2. Perform a "Silent Check"
     // 3. If a conflict is found, trigger a Local Notification
-    print("FRIDAY is performing a background systems check...");
+    debugPrint("FRIDAY is performing a background systems check...");
     return Future.value(true);
   });
 }

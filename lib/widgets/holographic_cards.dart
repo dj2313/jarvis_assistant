@@ -100,8 +100,9 @@ class WeatherHoloCard extends StatelessWidget {
     if (lower.contains('sun') || lower.contains('clear')) return Icons.wb_sunny;
     if (lower.contains('cloud')) return Icons.cloud;
     if (lower.contains('rain')) return Icons.water_drop;
-    if (lower.contains('storm') || lower.contains('thunder'))
+    if (lower.contains('storm') || lower.contains('thunder')) {
       return Icons.thunderstorm;
+    }
     if (lower.contains('snow')) return Icons.ac_unit;
     if (lower.contains('fog') || lower.contains('mist')) return Icons.foggy;
     return Icons.thermostat;

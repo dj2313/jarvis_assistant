@@ -502,7 +502,7 @@ class _RoutineCard extends StatelessWidget {
                       Switch(
                         value: routine.isEnabled,
                         onChanged: onToggle,
-                        activeColor: Colors.cyanAccent,
+                        activeThumbColor: Colors.cyanAccent,
                         activeTrackColor: Colors.cyan.withOpacity(0.3),
                       ),
                     ],
