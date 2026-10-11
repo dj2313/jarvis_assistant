@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an idea
+labels: [enhancement]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Feature summary
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What user problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Tool, screen, or API change you have in mind.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [chat/LLM, voice, memory, tools, GPS/navigation, UI, background/Sentinel, docs, other]
+    validations:
+      required: false

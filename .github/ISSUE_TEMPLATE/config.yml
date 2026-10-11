@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Q&A / Ideas
+    url: https://github.com/dj2313/jarvis_assistant/discussions
+    about: Ask questions or share ideas in Discussions.
