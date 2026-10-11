@@ -1,21 +1,6 @@
 /// Removes model-internal reasoning and pseudo tool-call markup before text is
 /// stored, displayed, or spoken to the user.
 class ResponseSanitizer {
-  static final RegExp _thinkBlock = RegExp(
-    r'<\s*think\b[^>]*>[\s\S]*?<\s*/\s*think\s*>',
-    caseSensitive: false,
-  );
-  // Qwen thinking delimiters: "< think> ... </?>" (and "</think>") — used by the
-  // Qwen reasoning models. Strips the whole thinking block.
-  static final RegExp _qwenThinkSection = RegExp(
-    r'\s*<[ \t]*think[ \t]*>[\s\S]*?(?:</[ \t]*\?>|</[ \t]*think[ \t]*>)\s*',
-    caseSensitive: false,
-  );
-  // Fallback: remove any stray Qwen delimiters left behind.
-  static final RegExp _qwenDelimiter = RegExp(
-    r'</[ \t]*\?>|<[ \t]*\?[ \t]*>',
-    caseSensitive: false,
-  );
   static final RegExp _functionBlock = RegExp(
     r'<\s*function\b[^>]*>[\s\S]*?<\s*/\s*function\s*>',
     caseSensitive: false,
