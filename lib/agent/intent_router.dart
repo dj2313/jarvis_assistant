@@ -261,7 +261,7 @@ Examples:
 - "What's my schedule today?" -> {"intent":"memory_search","confidence":0.9,"suggestedTools":["search_memory"],"requiresWeb":false,"requiresMemory":true,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":false}
 - "How are you?" -> {"intent":"general_chat","confidence":0.9,"suggestedTools":[],"requiresWeb":false,"requiresMemory":false,"requiresTool":false,"requiresPlanning":false,"requiresConfirmation":false}''';
 
-      return _callGroqForIntent(prompt);
+      return await _callGroqForIntent(prompt);
     } catch (e) {
       return IntentResult.unknown();
     }
