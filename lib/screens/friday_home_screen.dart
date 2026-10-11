@@ -763,21 +763,37 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        // Status protocol: NOMINAL (green) / SENTINEL_OFFLINE (amber —
+        // transient, nothing scary) / anything else = proactive alert
+        // (orange). Red is reserved for genuine misconfiguration.
+        final bool isNominal = result.contains("NOMINAL");
+        final bool isOffline = result.contains("SENTINEL_OFFLINE");
+        final bool isMisconfigured = result.contains("API_KEY");
+
+        final String label;
+        final Color color;
+        if (isNominal) {
+          label = "✓ NOMINAL";
+          color = Colors.green.withOpacity(0.8);
+        } else if (isMisconfigured) {
+          label = "⚠ CONFIG ERROR — set GROQ_API_KEY";
+          color = Colors.red.withOpacity(0.8);
+        } else if (isOffline) {
+          label = "◐ SENTINEL OFFLINE — retry shortly";
+          color = Colors.orangeAccent.withOpacity(0.8);
+        } else {
+          label = "🔔 ALERT SENT";
+          color = Colors.orange.withOpacity(0.8);
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              result.contains("NOMINAL")
-                  ? "✓ NOMINAL"
-                  : result.contains("ERROR")
-                  ? "⚠ ERROR"
-                  : "🔔 ALERT SENT",
+              label,
               style: GoogleFonts.shareTechMono(color: Colors.white),
             ),
-            backgroundColor: result.contains("NOMINAL")
-                ? Colors.green.withOpacity(0.8)
-                : result.contains("ERROR")
-                ? Colors.red.withOpacity(0.8)
-                : Colors.orange.withOpacity(0.8),
+            backgroundColor: color,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
           ),

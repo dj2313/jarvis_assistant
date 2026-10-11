@@ -1111,9 +1111,11 @@ Execute analysis now.
     try {
       apiKey = Config.groqApiKey;
     } catch (e) {
-      return "ERROR: Missing API Key in .env";
+      return "SENTINEL_OFFLINE: GROQ_API_KEY is not configured, Sir.";
     }
-    if (apiKey.isEmpty) return "ERROR: Missing API Key";
+    if (apiKey.isEmpty) {
+      return "SENTINEL_OFFLINE: GROQ_API_KEY is not configured, Sir.";
+    }
 
     final headers = {
       'Authorization': 'Bearer $apiKey',
@@ -1139,6 +1141,11 @@ Execute analysis now.
 
       final response1 = await _callGroqWithRetry(requestBody, headers);
 
+      if (response1.statusCode == 429) {
+        debugPrint("Sentinel: rate limited (429).");
+        return "SENTINEL_OFFLINE: Rate limited — please wait a moment, Sir.";
+      }
+
       final data1 = jsonDecode(response1.body);
       if (response1.statusCode != 200) {
         throw Exception(data1['error']?['message'] ?? 'API Error');
@@ -1156,11 +1163,22 @@ Execute analysis now.
         for (var toolCall in toolCalls) {
           final String toolName = toolCall['function']['name'];
           final String toolId = toolCall['id'];
-          final Map<String, dynamic> toolArgs = jsonDecode(
-            toolCall['function']['arguments'] ?? "{}",
-          );
-
-          final ToolResult toolResult = await _executeTool(toolName, toolArgs);
+          ToolResult toolResult;
+          try {
+            final Map<String, dynamic> toolArgs = jsonDecode(
+              toolCall['function']['arguments'] ?? "{}",
+            ) as Map<String, dynamic>;
+            toolResult = await _executeTool(toolName, toolArgs);
+          } catch (toolError) {
+            // A single failing tool (GPS off, quota, network) must not
+            // abort the whole Sentinel check — report it and continue.
+            debugPrint("Sentinel tool '$toolName' failed: $toolError");
+            toolResult = ToolResult.failure(
+              toolName: toolName,
+              message: 'Tool unavailable: $toolError',
+              errorCode: 'SENTINEL_TOOL_FAILED',
+            );
+          }
 
           tempMessages.add({
             'role': 'tool',
@@ -1190,7 +1208,9 @@ Execute analysis now.
       return initialResponse ?? "STATUS: NOMINAL";
     } catch (e) {
       debugPrint("Proactive check error: $e");
-      return "ERROR: $e";
+      // Never surface raw exception text to the UI — it string-matches on
+      // NOMINAL / SENTINEL_OFFLINE / alert.
+      return "SENTINEL_OFFLINE: Systems check failed — check connection, Sir.";
     }
   }
 
