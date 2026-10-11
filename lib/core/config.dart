@@ -64,7 +64,7 @@ $key=your_value_here""";
   // Model tiering: fast model for normal conversation + tool selection,
   // more capable model for complex reasoning queries.
   static const String groqModelFast = 'openai/gpt-oss-120b';   // Primary LLM for conversation + tools
-  static const String groqModelSmart = 'qwen/qwen3.6-27b';    // Complex reasoning + planning
+  static const String groqModelSmart = 'qwen/qwen3.8-27b';    // Complex reasoning + planning
   static const String sttModel = 'whisper-large-v3';           // Speech-to-Text model
   static const int groqMaxTokens = 2048; // Headroom for tool-calling + response
   static const double groqTemperature = 0.1;
