@@ -918,12 +918,16 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
             );
           });
         } else if (value == 'reset_limits') {
-          _orchestrator.brainService.resetDailyLimits();
+          final stats = _orchestrator.brainService.resetDailyLimits();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Daily usage limits reset, Sir."),
-                duration: Duration(seconds: 2),
+              SnackBar(
+                content: Text(
+                  "Limits reset — ${stats['chats_remaining']} chats, "
+                  "${(stats['tokens_remaining'] / 1000).toStringAsFixed(1)}k "
+                  "tokens remaining, Sir.",
+                ),
+                duration: const Duration(seconds: 2),
               ),
             );
           }

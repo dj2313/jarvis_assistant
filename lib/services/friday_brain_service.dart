@@ -175,9 +175,11 @@ class FridayBrainService {
   }
 
   /// Expose the daily-limit reset for the UI's "Reset Daily Limits" button.
-  void resetDailyLimits() {
+  /// Returns the freshly-read usage stats so callers can display proof.
+  Map<String, dynamic> resetDailyLimits() {
     _tokenManager.resetLimits();
     debugPrint("FridayBrainService: Daily limits manually reset.");
+    return _tokenManager.getUsageStats();
   }
 
   // --- 1. SYSTEM PROMPT (dynamically generated with current time) ---
@@ -489,6 +491,8 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
         final int tokensUsed =
             data['usage']?['total_tokens'] ?? estimatedTokens;
         _tokenManager.recordTokenUsage(tokensUsed);
+        // One chat per user message (not per tool round).
+        if (round == 1) _tokenManager.recordChat();
 
         final message = data['choices'][0]['message'];
         final List? toolCalls = message['tool_calls'];
