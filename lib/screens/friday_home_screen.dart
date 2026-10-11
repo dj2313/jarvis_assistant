@@ -20,7 +20,13 @@ class ChatMessage {
   final String text;
   final String? thought;
   final bool isUser;
-  ChatMessage({required this.text, required this.isUser, this.thought});
+  final bool isError;
+  ChatMessage({
+    required this.text,
+    required this.isUser,
+    this.thought,
+    this.isError = false,
+  });
 }
 
 class FridayHomeScreen extends StatefulWidget {
@@ -40,6 +46,18 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
   double _soundLevel = 0.0;
   String? _currentThoughtLine;
   bool _hasInteracted = false; // Track if chat should be shown
+  // Monotonic request counter: orb-tap cancel bumps it so in-flight
+  // responses are dropped instead of appearing after a "stop".
+  int _requestSeq = 0;
+
+  /// True while a request is being processed (any non-idle, non-listening,
+  /// non-speaking phase). Send/mic are disabled during these states.
+  bool get _isBusy =>
+      _state == AssistantState.thinking ||
+      _state == AssistantState.searchingMemory ||
+      _state == AssistantState.searchingWeb ||
+      _state == AssistantState.synthesizing ||
+      _state == AssistantState.savingMemory;
 
   final VoiceService _voiceService = VoiceService();
   final FridayOrchestrator _orchestrator = FridayOrchestrator();
@@ -145,9 +163,12 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
           _soundLevel = 0.0;
         });
       }
-    } else if (_state == AssistantState.thinking) {
+    } else if (_isBusy) {
+      // Cancel: bump the seq so the in-flight response is dropped on return.
       setState(() {
+        _requestSeq++;
         _state = AssistantState.idle;
+        _currentThoughtLine = null;
       });
     }
   }
@@ -196,25 +217,44 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
 
   Future<void> _handleUserCommand(String text) async {
     if (text.trim().isEmpty) return;
+    // Ignore new sends while a request is in flight (buttons are also
+    // disabled, this guards programmatic/voice paths).
+    if (_isBusy) return;
     setState(() {
       _hasInteracted = true;
       _messages.add(ChatMessage(text: text, isUser: true));
       _textController.clear();
       _state = AssistantState.thinking;
       _currentThoughtLine = "Processing request...";
+      _requestSeq++;
     });
     _playSound('processing');
     _scrollToBottom();
-    // JARVIS brief acknowledgement before task execution
-    await _voiceService.speakAcknowledgement();
+    // Fire-and-forget acknowledgement: never block the actual request on TTS.
+    unawaited(_voiceService.speakAcknowledgement());
     if (!mounted) return;
-    await _processCommand(text);
+    await _processCommand(text, _requestSeq);
   }
 
-  Future<void> _processCommand(String text) async {
+  Future<void> _processCommand(String text, int seq) async {
     final AgentResponse response = await _orchestrator.processRequest(text);
 
     if (!mounted) return;
+    // Cancelled via orb-tap while thinking: drop the stale response.
+    if (seq != _requestSeq) return;
+
+    // Errors get a styled bubble + retry; never speak raw error text.
+    if (response.status == RequestStatus.error) {
+      setState(() {
+        _currentThoughtLine = null;
+        _state = AssistantState.idle;
+        _messages.add(
+          ChatMessage(text: response.text, isUser: false, isError: true),
+        );
+      });
+      _scrollToBottom();
+      return;
+    }
 
     setState(() {
       _currentThoughtLine = null;
@@ -230,13 +270,32 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
     _playSound('response');
     _scrollToBottom();
     await _voiceService.speak(response.text, isTaskAck: true);
-    if (mounted) {
+    if (mounted && seq == _requestSeq) {
       setState(() => _state = AssistantState.idle);
     }
   }
 
+  /// Retry a failed message: drop the error bubble and re-run the request.
+  void _retryMessage(int errorIndex) {
+    if (_state == AssistantState.thinking) return;
+    if (errorIndex < 1) return;
+    // The user message sits immediately before the error bubble.
+    final String originalText = _messages[errorIndex - 1].text;
+    setState(() {
+      _messages.removeAt(errorIndex);
+      _state = AssistantState.thinking;
+      _currentThoughtLine = "Retrying request...";
+      _requestSeq++;
+    });
+    _scrollToBottom();
+    unawaited(_processCommand(originalText, _requestSeq));
+  }
+
   void _mapOrchestratorStateToUI(AgentState agentState) {
     if (!mounted) return;
+    // After an orb-tap cancel the UI is idle but the abandoned request keeps
+    // emitting states — ignore them so the UI doesn't flip back to busy.
+    if (_state == AssistantState.idle) return;
     setState(() {
       switch (agentState) {
         case AgentState.received:
@@ -1036,12 +1095,72 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
       itemCount: _messages.length,
       itemBuilder: (context, index) {
         final msg = _messages[index];
+        if (msg.isError) {
+          return _buildErrorBubble(msg, index)
+              .animate()
+              .fadeIn(duration: 400.ms)
+              .slideY(begin: 0.1, end: 0);
+        }
         return RichMessageCard(
           text: msg.text,
           isUser: msg.isUser,
           shouldAnimate: index == _messages.length - 1,
         ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
       },
+    );
+  }
+
+  /// Styled error bubble with a retry action — replaces raw
+  /// "Processing error: ..." text rendered as a normal message.
+  Widget _buildErrorBubble(ChatMessage msg, int index) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withOpacity(0.08),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.redAccent,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    msg.text,
+                    style: GoogleFonts.shareTechMono(
+                      color: Colors.redAccent.shade100,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _retryMessage(index),
+            icon: const Icon(Icons.refresh, color: Color(0xFFFF9500), size: 16),
+            label: Text(
+              "RETRY",
+              style: GoogleFonts.shareTechMono(
+                color: const Color(0xFFFF9500),
+                fontSize: 12,
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1133,11 +1252,20 @@ class _FridayHomeScreenState extends State<FridayHomeScreen>
                         ? Colors.redAccent
                         : Colors.white54,
                   ),
-                  onPressed: _handleOrbTap,
+                  // Mic off while busy — a request is already running.
+                  onPressed: _isBusy ? null : _handleOrbTap,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFFFF9500)),
-                  onPressed: () => _handleUserCommand(_textController.text),
+                  icon: Icon(
+                    Icons.send,
+                    color: _isBusy
+                        ? Colors.white24
+                        : const Color(0xFFFF9500),
+                  ),
+                  // Send disabled while busy — prevents silent queuing.
+                  onPressed: _isBusy
+                      ? null
+                      : () => _handleUserCommand(_textController.text),
                 ),
               ],
             ),
