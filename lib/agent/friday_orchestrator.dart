@@ -101,18 +101,26 @@ class FridayOrchestrator extends ChangeNotifier {
     }
 
     try {
+      final totalSw = Stopwatch()..start();
+
       _transition(AgentState.classifying);
+      var stageSw = Stopwatch()..start();
       final IntentResult intent = await _intentRouter.route(userInput);
+      debugPrint('[Timing] intent: ${stageSw.elapsedMilliseconds}ms');
 
       _transition(AgentState.collectingContext);
+      stageSw = Stopwatch()..start();
       final context = await _contextEngine.getSnapshot(
         includeLocation: _needsLocation(userInput, intent),
       );
+      debugPrint('[Timing] context: ${stageSw.elapsedMilliseconds}ms');
 
       _transition(AgentState.retrievingMemory);
       String memoryContext = '';
       if (intent.requiresMemory) {
+        stageSw = Stopwatch()..start();
         memoryContext = await _memoryService.retrieveContext(userInput);
+        debugPrint('[Timing] memory: ${stageSw.elapsedMilliseconds}ms');
       }
 
       _transition(AgentState.planning);
@@ -124,11 +132,13 @@ class FridayOrchestrator extends ChangeNotifier {
       );
 
       _transition(AgentState.executing);
+      stageSw = Stopwatch()..start();
       final brainResponse = await _brainService.chatWithIntelligence(
         enrichedInput,
         requiredToolName: _requiredToolFor(intent),
         onPhaseChange: _mapBrainPhaseToOrchestratorState,
       );
+      debugPrint('[Timing] brain: ${stageSw.elapsedMilliseconds}ms');
 
       _transition(AgentState.verifying);
       final toolResults = _extractToolResults(brainResponse);
@@ -142,6 +152,7 @@ class FridayOrchestrator extends ChangeNotifier {
       }
 
       _transition(AgentState.completed);
+      debugPrint('[Timing] TOTAL: ${totalSw.elapsedMilliseconds}ms');
       final response = AgentResponse(
         requestId: requestId,
         text: brainResponse.content,

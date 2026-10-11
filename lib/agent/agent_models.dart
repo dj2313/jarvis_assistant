@@ -73,6 +73,19 @@ class IntentResult {
     requiresPlanning: false,
     requiresConfirmation: false,
   );
+
+  /// No keyword matched — treat as plain conversation. The brain's tool
+  /// loop handles any tools the message actually needs.
+  factory IntentResult.generalChat() => IntentResult(
+    intent: 'general_chat',
+    confidence: 0.5,
+    suggestedTools: [],
+    requiresWeb: false,
+    requiresMemory: false,
+    requiresTool: false,
+    requiresPlanning: false,
+    requiresConfirmation: false,
+  );
 }
 
 class ContextSnapshot {

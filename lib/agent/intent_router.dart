@@ -1,14 +1,6 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../core/config.dart';
 import 'agent_models.dart';
 
 class IntentRouter {
-  static const String _groqEndpoint =
-      'https://api.groq.com/openai/v1/chat/completions';
-  // Use central config — do NOT hardcode model names here
-  static String get _model => Config.groqModelFast;
-
   static const Map<String, List<String>> _keywordMap = {
     'time_query': [
       'what time',
@@ -91,7 +83,11 @@ class IntentRouter {
       return keywordResult;
     }
 
-    return _llmFallbackRoute(lowerInput);
+    // No keyword match -> general chat. Deliberately NOT calling an LLM
+    // classifier here: it cost a full extra Groq round-trip before the real
+    // answer even started. The brain's own tool loop already decides when to
+    // call search_memory / web_search etc., so a miss needs no pre-routing.
+    return IntentResult.generalChat();
   }
 
   IntentResult? _matchKeywords(String input) {
@@ -231,88 +227,6 @@ class IntentRouter {
         );
       default:
         return IntentResult.unknown();
-    }
-  }
-
-  Future<IntentResult> _llmFallbackRoute(String input) async {
-    try {
-      final apiKey = Config.groqApiKey;
-      if (apiKey.isEmpty) return IntentResult.unknown();
-
-      final prompt =
-          '''Classify the user's intent. Return ONLY a JSON object with these fields:
-- intent: string (one of: time_query, date_query, set_reminder, open_app, send_message, gps_navigation, location_query, web_search, memory_save, memory_search, weather_query, system_status, general_chat, unknown)
-- confidence: number (0.0-1.0)
-- suggestedTools: array of strings (tool names: current_time, open_app, send_message, navigate, get_location, get_weather, search_memory, save_memory, web_search, get_battery)
-- requiresWeb: boolean
-- requiresMemory: boolean
-- requiresTool: boolean
-- requiresPlanning: boolean
-- requiresConfirmation: boolean
-
-User input: "$input"
-
-Examples:
-- "What time is it?" -> {"intent":"time_query","confidence":0.99,"suggestedTools":["current_time"],"requiresWeb":false,"requiresMemory":false,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":false}
-- "Remind me to call mom at 5" -> {"intent":"set_reminder","confidence":0.95,"suggestedTools":["save_memory"],"requiresWeb":false,"requiresMemory":true,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":true}
-- "Open Spotify" -> {"intent":"open_app","confidence":0.9,"suggestedTools":["open_app"],"requiresWeb":false,"requiresMemory":false,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":true}
-- "Send a WhatsApp message to John saying I'm running late" -> {"intent":"send_message","confidence":0.95,"suggestedTools":["send_message"],"requiresWeb":false,"requiresMemory":false,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":true}
-- "Who won the super bowl 2024?" -> {"intent":"web_search","confidence":0.95,"suggestedTools":["web_search"],"requiresWeb":true,"requiresMemory":false,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":false}
-- "What's my schedule today?" -> {"intent":"memory_search","confidence":0.9,"suggestedTools":["search_memory"],"requiresWeb":false,"requiresMemory":true,"requiresTool":true,"requiresPlanning":false,"requiresConfirmation":false}
-- "How are you?" -> {"intent":"general_chat","confidence":0.9,"suggestedTools":[],"requiresWeb":false,"requiresMemory":false,"requiresTool":false,"requiresPlanning":false,"requiresConfirmation":false}''';
-
-      return await _callGroqForIntent(prompt);
-    } catch (e) {
-      return IntentResult.unknown();
-    }
-  }
-
-  Future<IntentResult> _callGroqForIntent(String prompt) async {
-    try {
-      final apiKey = Config.groqApiKey;
-      if (apiKey.isEmpty) return IntentResult.unknown();
-
-      final headers = {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      };
-
-      final body = jsonEncode({
-        'model': _model,
-        'messages': [
-          {
-            'role': 'system',
-            'content': 'You are an intent classifier. Output ONLY valid JSON.',
-          },
-          {'role': 'user', 'content': prompt},
-        ],
-        'temperature': 0.1,
-        'response_format': {'type': 'json_object'},
-        'max_tokens': 200,
-      });
-
-      final response = await http
-          .post(Uri.parse(_groqEndpoint), headers: headers, body: body)
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final content = data['choices'][0]['message']['content'] ?? '{}';
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        return IntentResult(
-          intent: json['intent'] ?? 'unknown',
-          confidence: (json['confidence'] ?? 0.5).toDouble(),
-          suggestedTools: List<String>.from(json['suggestedTools'] ?? []),
-          requiresWeb: json['requiresWeb'] ?? false,
-          requiresMemory: json['requiresMemory'] ?? false,
-          requiresTool: json['requiresTool'] ?? false,
-          requiresPlanning: json['requiresPlanning'] ?? false,
-          requiresConfirmation: json['requiresConfirmation'] ?? false,
-        );
-      }
-      return IntentResult.unknown();
-    } catch (e) {
-      return IntentResult.unknown();
     }
   }
 }

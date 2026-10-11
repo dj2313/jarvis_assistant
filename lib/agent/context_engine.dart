@@ -144,34 +144,42 @@ class ContextEngine {
 
   Future<ContextSnapshot> getSnapshot({bool includeLocation = false}) async {
     final now = DateTime.now();
+
+    // Run all providers in parallel — the old sequential loop stacked every
+    // provider's latency (battery + network + up to 30s of GPS) on the
+    // critical path before the LLM call could even start.
+    final active = _providers
+        .where((p) => p.providerName != 'location' || includeLocation)
+        .toList();
+
+    final results = await Future.wait(
+      active.map((provider) => _safeContext(provider)),
+    );
+
     int batteryPercent = 0;
     String networkType = 'unknown';
     String? location;
     DateTime? nextCalendarEvent;
 
-    for (final provider in _providers) {
-      if (provider.providerName == 'location' && !includeLocation) continue;
-      try {
-        final context = await provider.getContext();
-        switch (provider.providerName) {
-          case 'battery':
-            batteryPercent = context['battery_percent'] ?? 0;
-            break;
-          case 'network':
-            networkType = context['network_type'] ?? 'unknown';
-            break;
-          case 'location':
-            location = context['location'];
-            break;
-          case 'calendar':
-            final eventStr = context['next_event'];
-            if (eventStr != null) {
-              nextCalendarEvent = DateTime.tryParse(eventStr);
-            }
-            break;
-        }
-      } catch (e) {
-        continue;
+    for (final result in results) {
+      if (result == null) continue;
+      final (provider, context) = result;
+      switch (provider) {
+        case 'battery':
+          batteryPercent = context['battery_percent'] ?? 0;
+          break;
+        case 'network':
+          networkType = context['network_type'] ?? 'unknown';
+          break;
+        case 'location':
+          location = context['location'];
+          break;
+        case 'calendar':
+          final eventStr = context['next_event'];
+          if (eventStr != null) {
+            nextCalendarEvent = DateTime.tryParse(eventStr);
+          }
+          break;
       }
     }
 
@@ -183,6 +191,28 @@ class ContextEngine {
       location: location,
       nextCalendarEvent: nextCalendarEvent,
     );
+  }
+
+  /// Fetch one provider's context without letting it fail or stall the
+  /// snapshot. Location gets a short budget here: this snapshot is only
+  /// conversational context — the navigate tool does its own full
+  /// (30s, last-known-fallback) fetch when real coordinates are needed.
+  Future<(String, Map<String, dynamic>)?> _safeContext(
+    ContextProvider provider,
+  ) async {
+    try {
+      final future = provider.getContext();
+      final Map<String, dynamic> context;
+      if (provider.providerName == 'location') {
+        context = await future.timeout(const Duration(seconds: 5));
+      } else {
+        context = await future.timeout(const Duration(seconds: 3));
+      }
+      return (provider.providerName, context);
+    } catch (e) {
+      debugPrint('ContextProvider ${provider.providerName} failed: $e');
+      return null;
+    }
   }
 
   void addProvider(ContextProvider provider) {

@@ -315,34 +315,42 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
     }
   }
 
+  // Patterns that mark a complex/planning request: routed to the smart
+  // reasoning model and allowed more tool-loop rounds.
+  static const List<String> _complexPatterns = [
+    'explain',
+    'why',
+    'how does',
+    'how do',
+    'compare',
+    'difference',
+    'analy',
+    'reason',
+    'plan',
+    'strategy',
+    'roadmap',
+    'tutorial',
+    'step by step',
+    'in detail',
+    'summarize',
+    'what if',
+    'pros and cons',
+    'recommend',
+  ];
+
   // Select the appropriate model tier for a request.
   // Fast model (openai/gpt-oss-120b): normal conversation and tool selection.
-  // Smart model (qwen/qwen3.6-27b): complex reasoning / planning requests.
+  // Smart model (qwen/qwen3.8-27b): complex reasoning / planning requests.
   String _selectModel(String userMessage, String? requiredToolName) {
     final lower = userMessage.toLowerCase();
-    final complexPatterns = [
-      'explain',
-      'why',
-      'how does',
-      'how do',
-      'compare',
-      'difference',
-      'analy',
-      'reason',
-      'plan',
-      'strategy',
-      'roadmap',
-      'tutorial',
-      'step by step',
-      'in detail',
-      'summarize',
-      'what if',
-      'pros and cons',
-      'recommend',
-    ];
     final requiresPlanning =
-        requiredToolName == null && _isComplexRequest(lower, complexPatterns);
+        requiredToolName == null && _isComplexRequest(lower, _complexPatterns);
     return requiresPlanning ? Config.groqModelSmart : _model;
+  }
+
+  /// Whether this message gets the extended tool budget (6 rounds vs 3).
+  bool _isPlanningRequest(String userMessage) {
+    return _isComplexRequest(userMessage.toLowerCase(), _complexPatterns);
   }
 
   bool _isComplexRequest(String lower, List<String> patterns) {
@@ -438,7 +446,8 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
       // Continue requesting the model until it stops emitting tool_calls and
       // produces a final assistant answer. This handles multi-step tool use
       // (e.g. search_memory -> web_search -> synthesis) robustly.
-      const int maxIterations = 6;
+      // Chat turns cap at 3 rounds; planning/complex requests get 6.
+      final int maxIterations = _isPlanningRequest(userMessage) ? 6 : 3;
       var round = 0;
       var shouldRequest = true;
       while (shouldRequest && round < maxIterations) {
