@@ -107,6 +107,52 @@ class FridayBrainService {
   int _activeChatRequests = 0;
   final List<Completer<void>> _chatWaiters = [];
 
+  // Client-side token pacing. Groq's free tier for these models is 8,000
+  // tokens/min (measured live from x-ratelimit-limit-tokens). Each chat
+  // request is ~2.2k tokens (system prompt + tool schemas + history), so
+  // without pacing a single tool loop bursts into 429s. We keep a rolling
+  // 60s usage window and wait before sending when the budget is spent.
+  static const int _tpmBudget = 8000;
+  static const int _tpmHeadroom = 2000; // never use more than 6k/min
+  final List<({DateTime at, int tokens})> _tokenWindow = [];
+
+  /// Estimate tokens for an outgoing request body (~4 chars/token).
+  int _estimateRequestTokens(Map<String, dynamic> requestBody) {
+    try {
+      return (jsonEncode(requestBody).length / 4).ceil();
+    } catch (_) {
+      return 1000;
+    }
+  }
+
+  /// Wait until the rolling 60s token window has room for [needed] tokens.
+  Future<void> _waitForTokenBudget(int needed) async {
+    // A single oversized request (> budget headroom) can never fit —
+    // don't wait forever, just send it.
+    if (needed > _tpmBudget - _tpmHeadroom) return;
+    while (true) {
+      final cutoff = DateTime.now().subtract(const Duration(seconds: 60));
+      _tokenWindow.removeWhere((e) => e.at.isBefore(cutoff));
+      final used = _tokenWindow.fold<int>(0, (sum, e) => sum + e.tokens);
+      if (used + needed <= _tpmBudget - _tpmHeadroom) return;
+
+      // Sleep until the oldest entry expires (plus a small buffer).
+      final oldest = _tokenWindow.first;
+      final waitMs =
+          cutoff.difference(oldest.at).inMilliseconds.abs() + 250;
+      debugPrint(
+        'Token budget: $used used + $needed needed > '
+        '${_tpmBudget - _tpmHeadroom} — waiting ${waitMs}ms',
+      );
+      await Future.delayed(Duration(milliseconds: waitMs.clamp(250, 5000)));
+    }
+  }
+
+  /// Record actual usage from a response into the rolling window.
+  void _recordWindowTokens(int tokens) {
+    _tokenWindow.add((at: DateTime.now(), tokens: tokens));
+  }
+
   /// Serializes chat requests so only one runs at a time, and spaces each
   /// Groq call by [_minRequestInterval]. Returns a release + throttle-wait
   /// function to be run before performing an actual Groq request.
@@ -139,20 +185,35 @@ class FridayBrainService {
   }
 
   /// Calls the Groq API with automatic retry + exponential backoff on 429,
-  /// and enforces the request-throttle gap.
+  /// honors the server's `retry-after` hint, paces against the rolling
+  /// token budget, and enforces the request-throttle gap.
   Future<http.Response> _callGroqWithRetry(
     Map<String, dynamic> requestBody,
     Map<String, String> headers,
   ) async {
     http.Response? lastResponse;
+    final int needed = _estimateRequestTokens(requestBody);
+
     for (int attempt = 0; attempt <= _maxRetries; attempt++) {
       if (attempt > 0) {
-        final delayMs = _baseRetryDelay.inMilliseconds * (1 << (attempt - 1));
+        // Prefer the server's retry-after (seconds) over blind backoff —
+        // fixed 2/4/8s delays all land inside the ~13s rate-limit window.
+        int delayMs = _baseRetryDelay.inMilliseconds * (1 << (attempt - 1));
+        final retryAfterSec = int.tryParse(
+          lastResponse?.headers['retry-after'] ?? '',
+        );
+        if (retryAfterSec != null) {
+          final serverDelayMs = retryAfterSec * 1000;
+          if (serverDelayMs > delayMs) delayMs = serverDelayMs;
+        }
+        delayMs = delayMs.clamp(0, 20000);
         debugPrint("Groq retry $attempt/$_maxRetries after ${delayMs}ms...");
         await Future.delayed(Duration(milliseconds: delayMs));
       }
 
       await _throttle();
+      // Wait for rolling token-budget room before sending.
+      await _waitForTokenBudget(needed);
 
       final response = await http
           .post(
@@ -166,6 +227,17 @@ class FridayBrainService {
         debugPrint("Groq 429 on attempt $attempt");
         lastResponse = response;
         continue; // retry
+      }
+
+      // Record actual usage into the rolling window (best effort).
+      if (response.statusCode == 200) {
+        try {
+          final data = jsonDecode(response.body);
+          final int actual = data['usage']?['total_tokens'] ?? needed;
+          _recordWindowTokens(actual);
+        } catch (_) {
+          _recordWindowTokens(needed);
+        }
       }
 
       return response; // success or non-429 error
@@ -232,7 +304,11 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
     {'role': 'system', 'content': _getSystemInstructions()},
   ];
 
-  static const int _maxHistoryLength = 20;
+  // Kept small on purpose: every history message is re-sent with each tool
+  // round, and Groq's free tier only allows ~8k tokens/min. 12 messages
+  // (~2-3 exchanges) preserves recent context while keeping each request
+  // well under the token budget.
+  static const int _maxHistoryLength = 12;
 
   // --- History Syncing Methods ---
 
@@ -367,10 +443,21 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
     // Serialize chat requests so only one is actively processing at a time.
     await _acquireChatSlot();
     try {
+      // Hard ceiling: no message may hang the chat forever. The tool loop
+      // has its own 45s deadline, but the fallback chain (retry waits +
+      // no-tools retry + Gemini backup) could still stack up beyond that.
       return await _chatWithIntelligenceInner(
         userMessage,
         onPhaseChange: onPhaseChange,
         requiredToolName: requiredToolName,
+      ).timeout(
+        const Duration(seconds: 90),
+        onTimeout: () => BrainResponse(
+          content:
+              "Apologies for the delay, Sir — the neural link is congested "
+              "right now. Please try again in a moment.",
+          toolsUsed: const [],
+        ),
       );
     } finally {
       _releaseChatSlot();
@@ -447,10 +534,22 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
       // produces a final assistant answer. This handles multi-step tool use
       // (e.g. search_memory -> web_search -> synthesis) robustly.
       // Chat turns cap at 3 rounds; planning/complex requests get 6.
+      // A wall-clock deadline stops the loop early: with rate-limit waits
+      // and fallbacks, an uncapped loop could keep one message pending for
+      // minutes — deliver what we have instead.
       final int maxIterations = _isPlanningRequest(userMessage) ? 6 : 3;
+      const Duration deadline = Duration(seconds: 45);
+      final Stopwatch loopWatch = Stopwatch()..start();
       var round = 0;
       var shouldRequest = true;
       while (shouldRequest && round < maxIterations) {
+        if (loopWatch.elapsed >= deadline) {
+          debugPrint(
+            'Tool loop deadline (${deadline.inSeconds}s) reached after '
+            '$round round(s) — stopping.',
+          );
+          break;
+        }
         round++;
 
         final Map<String, dynamic> requestBody = {
@@ -460,10 +559,11 @@ British formality. Measured. Intelligent. Loyal. Efficient. Always "Sir" or "Ma'
           'max_tokens': Config.groqMaxTokens,
         };
 
-        // Qwen reasoning model returns thinking in "content" by default.
+        // Qwen reasoning models return thinking in "content" by default.
         // Request hidden reasoning so only the final answer (or tool_calls)
-        // is returned, keeping responses clean.
-        if (activeModel == Config.groqModelSmart) {
+        // is returned, keeping responses clean. GPT-OSS models emit reasoning
+        // in a separate field, so this only applies to Qwen.
+        if (activeModel.contains('qwen')) {
           requestBody['reasoning_format'] = 'hidden';
         }
 
